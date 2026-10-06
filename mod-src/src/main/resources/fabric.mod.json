@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "kushclient",
+  "version": "${version}",
+  "name": "KushClient",
+  "description": "Mod oficial do KushClient.",
+  "authors": ["Kush Archives"],
+  "contact": {"homepage": "https://kush-archives.com.br/kushclient"},
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["br.com.kusharchives.kushclient.KushClientClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
