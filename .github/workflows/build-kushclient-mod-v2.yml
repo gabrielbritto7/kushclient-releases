@@ -1,0 +1,55 @@
+name: Build KushClient Mod v2
+
+on:
+  push:
+    branches:
+      - build/kushclient-mod-0.1.0
+    paths:
+      - 'mod-src/**'
+      - '.github/workflows/build-kushclient-mod-v2.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Build Fabric mod
+        shell: bash
+        run: |
+          cd mod-src
+          gradle --no-daemon clean build
+          ls -lah build/libs
+
+      - name: Verify JAR
+        shell: bash
+        run: |
+          test -f mod-src/build/libs/KushClient-0.1.0.jar
+          unzip -t mod-src/build/libs/KushClient-0.1.0.jar
+          unzip -p mod-src/build/libs/KushClient-0.1.0.jar fabric.mod.json | grep -q '"id": "kushclient"'
+          sha256sum mod-src/build/libs/KushClient-0.1.0.jar > KushClient-0.1.0.sha256.txt
+
+      - name: Upload KushClient JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: KushClient-Mod-1.21.1-v0.1.0-ready
+          path: |
+            mod-src/build/libs/KushClient-0.1.0.jar
+            KushClient-0.1.0.sha256.txt
+          if-no-files-found: error
+          retention-days: 7
