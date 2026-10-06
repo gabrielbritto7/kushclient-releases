@@ -1,0 +1,63 @@
+name: Build KushClient Mod
+
+on:
+  push:
+    branches:
+      - build/kushclient-mod-0.1.0
+    paths:
+      - 'mod-build/**'
+      - '.github/workflows/build-kushclient-mod.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Decode source
+        shell: bash
+        run: |
+          base64 -d mod-build/source.b64 > /tmp/kushclient-source.zip
+          mkdir -p /tmp/kushclient-src
+          unzip -q /tmp/kushclient-source.zip -d /tmp/kushclient-src
+          echo "PROJECT=/tmp/kushclient-src/KushClient-Mod-1.21.1-v0.1.0" >> "$GITHUB_ENV"
+
+      - name: Build Fabric mod
+        shell: bash
+        run: |
+          cd "$PROJECT"
+          gradle --no-daemon clean build
+          ls -lah build/libs
+
+      - name: Verify JAR
+        shell: bash
+        run: |
+          test -f "$PROJECT/build/libs/KushClient-0.1.0.jar"
+          unzip -t "$PROJECT/build/libs/KushClient-0.1.0.jar"
+          unzip -p "$PROJECT/build/libs/KushClient-0.1.0.jar" fabric.mod.json | grep -q '"id": "kushclient"'
+          sha256sum "$PROJECT/build/libs/KushClient-0.1.0.jar" > /tmp/KushClient-0.1.0.sha256.txt
+
+      - name: Upload KushClient JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: KushClient-Mod-1.21.1-v0.1.0
+          path: |
+            ${{ env.PROJECT }}/build/libs/KushClient-0.1.0.jar
+            /tmp/KushClient-0.1.0.sha256.txt
+          if-no-files-found: error
+          retention-days: 7
