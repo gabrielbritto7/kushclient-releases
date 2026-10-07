@@ -283,5 +283,27 @@ p.write_text(s)
 p=JAVA/'gui/screens/ModuleConfigScreen.java';s=p.read_text()
 needle='        net.fastclient.hud.gui.KushAssets.backdrop(graphics, DisplaySpace.width(), DisplaySpace.height());'
 assert s.count(needle)==1
-s=s.replace(needle,needle+"\n        if (this.module.isEnabled() && this.module.isHudVisible() && this.field_22787.field_1687 != null) {\n            this.module.onRender(graphics, delta);\n        }",1)
+s=s.replace(needle,needle+'''
+        if (this.module.isEnabled() && this.module.isHudVisible() && this.field_22787.field_1687 != null) {
+            int hudX=this.module.getHudX(), hudY=this.module.getHudY();
+            int hudW=Math.max(1,Math.round(this.module.getHudWidth()*this.module.getHudScale()));
+            int hudH=Math.max(1,Math.round(this.module.getHudHeight()*this.module.getHudScale()));
+            boolean covered=hudX<this.panelX+this.panelWidth && hudX+hudW>this.panelX
+                && hudY<this.panelY+this.panelHeight && hudY+hudH>this.panelY;
+            graphics.method_51448().pushMatrix();
+            try {
+                if (covered) {
+                    float previewScale=Math.min(1f,Math.min(Math.max(1,this.panelX-32)/(float)hudW,
+                        Math.max(1,DisplaySpace.height()-32)/(float)hudH));
+                    int previewX=Math.max(8,Math.round((this.panelX-hudW*previewScale)/2));
+                    int previewY=Math.max(16,Math.min(hudY,Math.round(DisplaySpace.height()-16-hudH*previewScale)));
+                    graphics.method_51448().translate(previewX,previewY);
+                    graphics.method_51448().scale(previewScale,previewScale);
+                    graphics.method_51448().translate(-hudX,-hudY);
+                }
+                this.module.onRender(graphics, delta);
+            } finally {
+                graphics.method_51448().popMatrix();
+            }
+        }''',1)
 p.write_text(s)
