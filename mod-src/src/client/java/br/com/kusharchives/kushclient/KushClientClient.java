@@ -1,61 +1,63 @@
 package br.com.kusharchives.kushclient;
 
-import br.com.kusharchives.kushclient.gui.KushMenuScreen;
-import com.mojang.blaze3d.platform.InputConstants;
+import br.com.kusharchives.kushclient.core.config.ConfigManager;
+import br.com.kusharchives.kushclient.core.event.EventBus;
+import br.com.kusharchives.kushclient.core.event.events.ClientTickEvent;
+import br.com.kusharchives.kushclient.core.module.ModuleManager;
+import br.com.kusharchives.kushclient.input.KushKeybinds;
+import br.com.kusharchives.kushclient.gui.KushUiController;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class KushClientClient implements ClientModInitializer {
-    public static final String VERSION = "0.1.0";
-    private static KeyMapping openMenu;
-    private static boolean fpsEnabled = true;
-    private static boolean coordinatesEnabled = true;
+    public static final String MOD_ID = "kushclient";
+    public static final String NAME = "KushClient";
+    public static final String VERSION = "0.2.0";
+    public static final Logger LOGGER = LoggerFactory.getLogger(NAME);
+
+    private static KushClientClient instance;
+    private final EventBus eventBus = new EventBus();
+    private final ModuleManager moduleManager = new ModuleManager();
+    private ConfigManager configManager;
 
     @Override
     public void onInitializeClient() {
-        openMenu = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-                "key.kushclient.open_menu",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_RIGHT_SHIFT,
-                "category.kushclient"
-        ));
+        instance = this;
+        configManager = new ConfigManager(moduleManager);
+        moduleManager.setConfigManager(configManager);
+        moduleManager.registerCoreModules();
+        configManager.load();
+        KushKeybinds.register();
+        KushUiController.register();
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (openMenu.consumeClick()) {
-                if (client.screen instanceof KushMenuScreen) client.setScreen(null);
-                else client.setScreen(new KushMenuScreen(client.screen));
-            }
+            eventBus.post(new ClientTickEvent(client));
+            moduleManager.onClientTick(client);
+            KushKeybinds.onClientTick(client);
+            KushUiController.onClientTick(client);
         });
 
-        HudRenderCallback.EVENT.register((graphics, tickCounter) -> {
-            Minecraft client = Minecraft.getInstance();
-            if (client.player == null || client.options.hideGui) return;
+        HudRenderCallback.EVENT.register((graphics, tickCounter) ->
+                moduleManager.onHudRender(Minecraft.getInstance(), graphics));
 
-            if (fpsEnabled) {
-                String text = "FPS  " + client.getFps();
-                int x = 8, y = 8, width = client.font.width(text) + 12;
-                graphics.fill(x, y, x + width, y + 18, 0xB009090B);
-                graphics.fill(x, y, x + 2, y + 18, 0xFFFF3B30);
-                graphics.drawString(client.font, text, x + 7, y + 5, 0xFFFFFFFF, false);
-            }
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try { configManager.save(); }
+            catch (Exception exception) { LOGGER.warn("Não foi possível salvar a configuração durante o encerramento.", exception); }
+        }, "KushClient-Config-Shutdown"));
 
-            if (coordinatesEnabled) {
-                String text = String.format("XYZ  %.1f  %.1f  %.1f", client.player.getX(), client.player.getY(), client.player.getZ());
-                int x = 8, y = 30, width = client.font.width(text) + 12;
-                graphics.fill(x, y, x + width, y + 18, 0xB009090B);
-                graphics.fill(x, y, x + 2, y + 18, 0xFFFF3B30);
-                graphics.drawString(client.font, text, x + 7, y + 5, 0xFFFFFFFF, false);
-            }
-        });
+        LOGGER.info("{} {} iniciado para Minecraft 1.21.1. Módulos: {}", NAME, VERSION, moduleManager.getModules().size());
     }
 
-    public static boolean isFpsEnabled() { return fpsEnabled; }
-    public static boolean isCoordinatesEnabled() { return coordinatesEnabled; }
-    public static void toggleFps() { fpsEnabled = !fpsEnabled; }
-    public static void toggleCoordinates() { coordinatesEnabled = !coordinatesEnabled; }
+    public static KushClientClient getInstance() {
+        if (instance == null) throw new IllegalStateException("KushClient ainda não foi inicializado.");
+        return instance;
+    }
+
+    public EventBus getEventBus() { return eventBus; }
+    public ModuleManager getModuleManager() { return moduleManager; }
+    public ConfigManager getConfigManager() { return configManager; }
 }

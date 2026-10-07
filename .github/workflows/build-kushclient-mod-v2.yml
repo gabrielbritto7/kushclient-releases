@@ -1,9 +1,9 @@
-name: Build KushClient Mod v2
+name: Build KushClient Mod v0.2.0
 
 on:
   push:
     branches:
-      - build/kushclient-mod-0.1.0
+      - build/kushclient-mod-0.2.0
     paths:
       - 'mod-src/**'
       - '.github/workflows/build-kushclient-mod-v2.yml'
@@ -39,28 +39,23 @@ jobs:
       - name: Download Fabric API 1.21.1
         shell: bash
         run: |
-          curl -fL --retry 3 --retry-delay 2 \
-            'https://cdn.modrinth.com/data/P7dR8mSH/versions/Mys3P7lK/fabric-api-0.116.17%2B1.21.1.jar' \
-            -o 'fabric-api-0.116.17+1.21.1.jar'
-          unzip -t 'fabric-api-0.116.17+1.21.1.jar'
-          sha256sum 'fabric-api-0.116.17+1.21.1.jar' > fabric-api-0.116.17+1.21.1.sha256.txt
+          curl -fL 'https://cdn.modrinth.com/data/P7dR8mSH/versions/zp7D0pBT/fabric-api-0.116.17%2B1.21.1.jar' -o fabric-api-0.116.17+1.21.1.jar
 
       - name: Verify JAR
         shell: bash
         run: |
-          test -f mod-src/build/libs/KushClient-0.1.0.jar
-          unzip -t mod-src/build/libs/KushClient-0.1.0.jar
-          unzip -p mod-src/build/libs/KushClient-0.1.0.jar fabric.mod.json | grep -q '"id": "kushclient"'
-          sha256sum mod-src/build/libs/KushClient-0.1.0.jar > KushClient-0.1.0.sha256.txt
+          test -f mod-src/build/libs/KushClient-0.2.0.jar
+          unzip -t mod-src/build/libs/KushClient-0.2.0.jar
+          unzip -p mod-src/build/libs/KushClient-0.2.0.jar fabric.mod.json | grep -q '"id": "kushclient"'
+          sha256sum mod-src/build/libs/KushClient-0.2.0.jar > KushClient-0.2.0.sha256.txt
 
       - name: Upload KushClient bundle files
         uses: actions/upload-artifact@v4
         with:
-          name: KushClient-Mod-1.21.1-v0.1.0-with-fabric-api
+          name: KushClient-Mod-1.21.1-v0.2.0-with-fabric-api
           path: |
-            mod-src/build/libs/KushClient-0.1.0.jar
-            KushClient-0.1.0.sha256.txt
+            mod-src/build/libs/KushClient-0.2.0.jar
+            KushClient-0.2.0.sha256.txt
             fabric-api-0.116.17+1.21.1.jar
-            fabric-api-0.116.17+1.21.1.sha256.txt
           if-no-files-found: error
           retention-days: 7
