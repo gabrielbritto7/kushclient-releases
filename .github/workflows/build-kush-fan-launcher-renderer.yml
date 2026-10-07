@@ -1,0 +1,26 @@
+name: Build Kush Fan LauncherRenderer
+on:
+  push:
+    branches: [build/kush-fan-patch-1.21.11]
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+      - name: Build
+        run: |
+          cd fanpatch
+          gradle --no-daemon clean build
+          unzip -l build/libs/*.jar | grep 'net/fastclient/hud/launcher/LauncherRenderer.class'
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: kush-fan-renderer
+          path: fanpatch/build/libs/*.jar
