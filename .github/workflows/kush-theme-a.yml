@@ -1,7 +1,7 @@
 name: KushMod theme A — native Minecraft screenshots
 on:
   push:
-    branches: [build/kush-theme-a-1.21.11]
+    branches: [build/kush-theme-a-1.21.11, build/kush-theme-v0.3.2]
     paths: ['kush-theme/**', '.github/workflows/kush-theme-a.yml']
   workflow_dispatch:
 permissions:
