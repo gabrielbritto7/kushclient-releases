@@ -1,0 +1,214 @@
+name: Capture Kush Fan UI
+
+on:
+  push:
+    branches: [build/kush-fan-patch-1.21.11]
+    paths:
+      - 'fanpatch/**'
+      - '.github/workflows/capture-kush-fan-ui.yml'
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Install virtual display tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xdotool scrot openbox
+
+      - name: Build FastClient HUD base
+        run: |
+          git clone --depth 1 https://github.com/itz0cat/fastclient-hud.git base
+          cd base
+          chmod +x gradlew
+          ./gradlew --no-daemon clean build
+          ls -lah build/libs
+
+      - name: Build Kush launcher renderer patch
+        run: |
+          cd fanpatch
+          gradle --no-daemon clean build
+          ls -lah build/libs
+
+      - name: Assemble current Kush Fan Edition JAR
+        run: |
+          mkdir -p dist
+          python3 - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+
+          base = next(p for p in Path('base/build/libs').glob('*.jar') if 'sources' not in p.name)
+          patch = next(p for p in Path('fanpatch/build/libs').glob('*.jar') if 'sources' not in p.name)
+          out = Path('dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar')
+
+          with zipfile.ZipFile(patch) as pz:
+              renderer = pz.read('net/fastclient/hud/launcher/LauncherRenderer.class')
+
+          with zipfile.ZipFile(base) as zin, zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zout:
+              for info in zin.infolist():
+                  if info.is_dir():
+                      zout.writestr(info, b'')
+                      continue
+                  data = zin.read(info.filename)
+                  if info.filename == 'net/fastclient/hud/launcher/LauncherRenderer.class':
+                      data = renderer
+                  elif info.filename == 'fabric.mod.json':
+                      meta = json.loads(data)
+                      meta['name'] = 'Kush Fan Edition (FastClient HUD base)'
+                      meta['description'] = 'Fan-made personal test edition based on FastClient HUD. Kush visual/navigation changes; FastClient HUD modules remain the functional base.'
+                      meta['authors'] = ['FastClient Team (base)', 'Kush Fan Edition (fan modifications)']
+                      data = json.dumps(meta, indent=2, ensure_ascii=False).encode('utf-8')
+                  zout.writestr(info, data)
+              zout.writestr('KUSH-FAN-EDITION.txt', 'Kush Fan Edition • base FastClient HUD\nPersonal fan/test build.\n')
+          print(out, out.stat().st_size)
+          PY
+          unzip -t dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar | tail -1
+          sha256sum dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar > dist/SHA256.txt
+
+      - name: Prepare empty Fabric capture client
+        run: |
+          mkdir -p capture-runner/run/mods capture-runner/run/screenshots
+          cp dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar capture-runner/run/mods/
+          cat > capture-runner/settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  maven { url = 'https://maven.fabricmc.net/' }
+                  gradlePluginPortal()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'kush-ui-capture'
+          EOF
+          cat > capture-runner/build.gradle <<'EOF'
+          plugins {
+              id 'net.fabricmc.fabric-loom-remap' version '1.18.2'
+          }
+
+          repositories {
+              mavenCentral()
+              maven { url = 'https://maven.fabricmc.net/' }
+          }
+
+          dependencies {
+              minecraft 'com.mojang:minecraft:1.21.11'
+              mappings loom.officialMojangMappings()
+              modImplementation 'net.fabricmc:fabric-loader:0.18.4'
+              modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.6+1.21.11'
+          }
+
+          loom {
+              runs {
+                  client {
+                      client()
+                      name 'Kush UI Capture'
+                      runDir 'run'
+                  }
+              }
+          }
+          EOF
+          cat > capture-runner/run/options.txt <<'EOF'
+          onboardAccessibility:false
+          fullscreen:false
+          guiScale:2
+          renderDistance:2
+          simulationDistance:2
+          maxFps:30
+          enableVsync:false
+          skipMultiplayerWarning:true
+          narrator:0
+          EOF
+
+      - name: Launch Minecraft and capture real UI
+        run: |
+          mkdir -p capture-runner/run/screenshots logs
+          Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset > logs/xvfb.log 2>&1 &
+          export DISPLAY=:99
+          openbox > logs/openbox.log 2>&1 &
+          sleep 2
+
+          cd capture-runner
+          gradle --no-daemon runClient --args='--width 1280 --height 720' > ../logs/minecraft.log 2>&1 &
+          MC_PID=$!
+          cd ..
+
+          WID=''
+          for i in $(seq 1 210); do
+            WID=$(xdotool search --name 'Minecraft' 2>/dev/null | head -1 || true)
+            if [ -n "$WID" ]; then break; fi
+            sleep 1
+          done
+          if [ -z "$WID" ]; then
+            echo 'Minecraft window was not found'
+            tail -200 logs/minecraft.log || true
+            exit 1
+          fi
+
+          xdotool windowmove "$WID" 0 0 || true
+          xdotool windowsize "$WID" 1280 720 || true
+          xdotool windowactivate --sync "$WID" || xdotool windowfocus "$WID" || true
+          sleep 35
+
+          scrot -o capture-runner/run/screenshots/01-main-menu.png
+
+          # GUI scale 2: click the Kush Mods button in the top-right chrome.
+          xdotool mousemove --sync 794 72 click 1
+          sleep 5
+          scrot -o capture-runner/run/screenshots/02-kush-mods.png
+
+          xdotool key Escape
+          sleep 3
+          # Toggle to vanilla Minecraft UI through the MC button.
+          xdotool mousemove --sync 1194 72 click 1
+          sleep 5
+          scrot -o capture-runner/run/screenshots/03-minecraft-ui.png
+
+          # Try Right Shift on the title screen as an additional diagnostic capture.
+          xdotool mousemove --sync 640 360
+          xdotool key Shift_R
+          sleep 3
+          scrot -o capture-runner/run/screenshots/04-right-shift-diagnostic.png
+
+          kill "$MC_PID" || true
+          sleep 2
+
+      - name: Upload current JAR
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kush-Fan-Edition-current-jar
+          path: |
+            dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar
+            dist/SHA256.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload real Minecraft screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kush-Fan-Edition-real-ui-screenshots
+          path: capture-runner/run/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload capture logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kush-Fan-Edition-capture-logs
+          path: logs/*
+          if-no-files-found: warn
+          retention-days: 14
