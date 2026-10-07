@@ -29,7 +29,11 @@ jobs:
           Copy-Item installer-builder/setup.nsi,installer-builder/kushclient.ico build/Gerador
           Copy-Item installer-builder/test-support build/Gerador -Recurse
           $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-          & $csc /nologo /target:winexe /platform:anycpu /codepage:65001 /out:build/Gerador/Gerador-Atualizacoes-KushClient.exe /win32icon:installer-builder/kushclient.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll installer-builder/Gerador.cs installer-builder/SelfTests.cs
+          $binary=Join-Path $pwd 'build\Gerador\Gerador-Atualizacoes-KushClient.exe'
+          $icon=Join-Path $pwd 'installer-builder\kushclient.ico'
+          $source=Join-Path $pwd 'installer-builder\Gerador.cs'
+          $tests=Join-Path $pwd 'installer-builder\SelfTests.cs'
+          & $csc /nologo /target:winexe /platform:anycpu /codepage:65001 "/out:$binary" "/win32icon:$icon" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll $source $tests
           if ($LASTEXITCODE -ne 0) { throw 'C# compilation failed' }
       - name: Exercise real packaging
         shell: pwsh
