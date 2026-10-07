@@ -1,0 +1,307 @@
+name: Capture Kush UI Framebuffer
+
+on:
+  push:
+    branches: [build/kush-fan-capture-final]
+    paths:
+      - 'fanpatch/**'
+      - '.github/workflows/capture-kush-ui-framebuffer.yml'
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Install Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb x11-utils
+
+      - name: Build base and Kush patch
+        run: |
+          git clone --depth 1 https://github.com/itz0cat/fastclient-hud.git base
+          cd base
+          chmod +x gradlew
+          ./gradlew --no-daemon clean build
+          cd ../fanpatch
+          gradle --no-daemon clean build
+          cd ..
+
+      - name: Assemble Kush Fan Edition
+        run: |
+          mkdir -p dist
+          python3 - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+          base = next(p for p in Path('base/build/libs').glob('*.jar') if 'sources' not in p.name)
+          patch = next(p for p in Path('fanpatch/build/libs').glob('*.jar') if 'sources' not in p.name)
+          out = Path('dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar')
+          with zipfile.ZipFile(patch) as pz:
+              renderer = pz.read('net/fastclient/hud/launcher/LauncherRenderer.class')
+          with zipfile.ZipFile(base) as zin, zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zout:
+              for info in zin.infolist():
+                  if info.is_dir():
+                      zout.writestr(info, b'')
+                      continue
+                  data = zin.read(info.filename)
+                  if info.filename == 'net/fastclient/hud/launcher/LauncherRenderer.class':
+                      data = renderer
+                  elif info.filename == 'fabric.mod.json':
+                      meta = json.loads(data)
+                      meta['name'] = 'Kush Fan Edition (FastClient HUD base)'
+                      meta['description'] = 'Fan-made personal test edition based on FastClient HUD.'
+                      meta['authors'] = ['FastClient Team (base)', 'Kush Fan Edition (fan modifications)']
+                      data = json.dumps(meta, indent=2, ensure_ascii=False).encode()
+                  zout.writestr(info, data)
+              zout.writestr('KUSH-FAN-EDITION.txt', 'Kush Fan Edition • base FastClient HUD\nPersonal fan/test build.\n')
+          PY
+          unzip -t dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar | tail -1
+          sha256sum dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar > dist/SHA256.txt
+
+      - name: Prepare capture driver
+        run: |
+          mkdir -p capture/run/mods capture/src/main/java/dev/kush/capture capture/src/main/resources
+          cp dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar capture/run/mods/
+
+          cat > capture/settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  maven { url = 'https://maven.fabricmc.net/' }
+                  gradlePluginPortal()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'kush-capture'
+          EOF
+
+          cat > capture/build.gradle <<'EOF'
+          plugins { id 'net.fabricmc.fabric-loom-remap' version '1.18.2' }
+          repositories {
+              mavenCentral()
+              maven { url = 'https://maven.fabricmc.net/' }
+          }
+          dependencies {
+              minecraft 'com.mojang:minecraft:1.21.11'
+              mappings loom.officialMojangMappings()
+              modImplementation 'net.fabricmc:fabric-loader:0.18.4'
+              modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.6+1.21.11'
+          }
+          loom {
+              runs {
+                  client {
+                      client()
+                      name 'Kush Capture'
+                      runDir 'run'
+                  }
+              }
+          }
+          EOF
+
+          cat > capture/src/main/resources/fabric.mod.json <<'EOF'
+          {
+            "schemaVersion": 1,
+            "id": "kush-capture-driver",
+            "version": "1.0.0",
+            "name": "Kush UI Capture Driver",
+            "environment": "client",
+            "entrypoints": {"client": ["dev.kush.capture.CaptureDriver"]},
+            "depends": {"fabricloader": ">=0.18.4", "minecraft": "1.21.11", "fabric-api": "*"}
+          }
+          EOF
+
+          cat > capture/src/main/java/dev/kush/capture/CaptureDriver.java <<'EOF'
+          package dev.kush.capture;
+
+          import net.fabricmc.api.ClientModInitializer;
+          import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+          import net.minecraft.client.Minecraft;
+          import net.minecraft.client.Screenshot;
+          import net.minecraft.client.gui.screens.Screen;
+          import net.minecraft.client.gui.screens.TitleScreen;
+          import java.io.File;
+          import java.lang.reflect.Field;
+          import java.lang.reflect.Method;
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+          import java.nio.file.StandardCopyOption;
+          import java.util.Comparator;
+          import java.util.stream.Stream;
+
+          public final class CaptureDriver implements ClientModInitializer {
+              private enum State {
+                  WAIT_TITLE, CAPTURE_MAIN, OPEN_MODS, CAPTURE_ALL,
+                  SET_HUD, CAPTURE_HUD, SET_RENDER, CAPTURE_RENDER,
+                  SET_MOVEMENT, CAPTURE_MOVEMENT, SET_PLAYER, CAPTURE_PLAYER,
+                  SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
+                  OPEN_VANILLA, CAPTURE_VANILLA, DONE
+              }
+              private static State state = State.WAIT_TITLE;
+              private static int waitTicks;
+              private static int stableTicks;
+              private static boolean capturing;
+
+              public void onInitializeClient() {
+                  ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
+                  System.out.println("[KushCapture] initialized");
+              }
+
+              private static void tick(Minecraft client) {
+                  try {
+                      if (capturing) return;
+                      if (waitTicks > 0) { waitTicks--; return; }
+                      switch (state) {
+                          case WAIT_TITLE -> {
+                              if (client.screen instanceof TitleScreen) {
+                                  if (++stableTicks >= 80) state = State.CAPTURE_MAIN;
+                              } else stableTicks = 0;
+                          }
+                          case CAPTURE_MAIN -> capture(client, "01-main-menu", State.OPEN_MODS);
+                          case OPEN_MODS -> { open(client, "net.fastclient.hud.gui.screens.ClickGUIScreen"); waitTicks=60; state=State.CAPTURE_ALL; }
+                          case CAPTURE_ALL -> { category(client, null); capture(client, "02-kush-mods-all", State.SET_HUD); }
+                          case SET_HUD -> setCat(client,"HUD",State.CAPTURE_HUD);
+                          case CAPTURE_HUD -> capture(client,"03-kush-mods-hud",State.SET_RENDER);
+                          case SET_RENDER -> setCat(client,"RENDER",State.CAPTURE_RENDER);
+                          case CAPTURE_RENDER -> capture(client,"04-kush-mods-render",State.SET_MOVEMENT);
+                          case SET_MOVEMENT -> setCat(client,"MOVEMENT",State.CAPTURE_MOVEMENT);
+                          case CAPTURE_MOVEMENT -> capture(client,"05-kush-mods-movement",State.SET_PLAYER);
+                          case SET_PLAYER -> setCat(client,"PLAYER",State.CAPTURE_PLAYER);
+                          case CAPTURE_PLAYER -> capture(client,"06-kush-mods-player",State.SET_UTILITY);
+                          case SET_UTILITY -> setCat(client,"UTILITY",State.CAPTURE_UTILITY);
+                          case CAPTURE_UTILITY -> capture(client,"07-kush-mods-utility",State.OPEN_OVERLAY);
+                          case OPEN_OVERLAY -> { open(client,"net.fastclient.hud.gui.screens.HudOverlayScreen"); waitTicks=60; state=State.CAPTURE_OVERLAY; }
+                          case CAPTURE_OVERLAY -> capture(client,"08-right-shift",State.OPEN_VANILLA);
+                          case OPEN_VANILLA -> {
+                              Class<?> pref=Class.forName("net.fastclient.hud.launcher.LauncherSkinPreference");
+                              Method is=pref.getDeclaredMethod("isFastClientSkinEnabled");
+                              if ((boolean)is.invoke(null)) pref.getDeclaredMethod("toggle").invoke(null);
+                              client.setScreen(new TitleScreen()); waitTicks=80; state=State.CAPTURE_VANILLA;
+                          }
+                          case CAPTURE_VANILLA -> capture(client,"09-minecraft-ui",State.DONE);
+                          case DONE -> { System.out.println("[KushCapture] complete"); Thread.sleep(500); System.exit(0); }
+                      }
+                  } catch (Throwable t) { t.printStackTrace(); System.err.println("[KushCapture] failed state="+state); System.exit(2); }
+              }
+
+              private static void setCat(Minecraft client,String name,State next) throws Exception {
+                  category(client,name); waitTicks=35; state=next;
+              }
+
+              @SuppressWarnings({"rawtypes","unchecked"})
+              private static void category(Minecraft client,String name) throws Exception {
+                  if (client.screen==null || !client.screen.getClass().getName().equals("net.fastclient.hud.gui.screens.ClickGUIScreen"))
+                      open(client,"net.fastclient.hud.gui.screens.ClickGUIScreen");
+                  Object screen=client.screen;
+                  Class<?> sc=screen.getClass();
+                  Field f=sc.getDeclaredField("selectedCategory"); f.setAccessible(true);
+                  Object value=null;
+                  if(name!=null){
+                      Class<?> cc=Class.forName("net.fastclient.hud.modules.Category");
+                      value=Enum.valueOf((Class<? extends Enum>)cc.asSubclass(Enum.class),name);
+                  }
+                  f.set(screen,value);
+                  Method m=sc.getDeclaredMethod("updateModuleList"); m.setAccessible(true); m.invoke(screen);
+                  System.out.println("[KushCapture] category="+(name==null?"ALL":name));
+              }
+
+              private static void open(Minecraft client,String className) throws Exception {
+                  client.setScreen((Screen)Class.forName(className).getConstructor().newInstance());
+                  System.out.println("[KushCapture] opened="+className);
+              }
+
+              private static void capture(Minecraft client,String name,State next) throws Exception {
+                  capturing=true;
+                  File root=new File(client.gameDirectory,"kush-capture-temp/"+name);
+                  Path rootPath=root.toPath();
+                  Path outDir=new File(client.gameDirectory,"kush-captures").toPath();
+                  Files.createDirectories(rootPath); Files.createDirectories(outDir);
+                  System.out.println("[KushCapture] capture="+name);
+                  Screenshot.grab(root,client.getMainRenderTarget(),msg -> client.execute(() -> {
+                      try {
+                          Path shots=rootPath.resolve("screenshots");
+                          Path latest;
+                          try(Stream<Path> s=Files.list(shots)){
+                              latest=s.filter(p->p.getFileName().toString().endsWith(".png"))
+                                      .max(Comparator.comparingLong(p->p.toFile().lastModified())).orElseThrow();
+                          }
+                          Path out=outDir.resolve(name+".png");
+                          Files.copy(latest,out,StandardCopyOption.REPLACE_EXISTING);
+                          System.out.println("[KushCapture] saved="+out.toAbsolutePath());
+                          state=next; waitTicks=45; capturing=false;
+                      } catch(Throwable t){ t.printStackTrace(); System.exit(3); }
+                  }));
+              }
+          }
+          EOF
+
+          cat > capture/run/options.txt <<'EOF'
+          onboardAccessibility:false
+          fullscreen:false
+          guiScale:2
+          renderDistance:2
+          simulationDistance:5
+          maxFps:30
+          enableVsync:false
+          skipMultiplayerWarning:true
+          narrator:0
+          EOF
+
+      - name: Run Minecraft and capture framebuffer
+        run: |
+          set -euo pipefail
+          mkdir -p logs capture/run/kush-captures
+          Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset > logs/xvfb.log 2>&1 &
+          XPID=$!
+          export DISPLAY=:99
+          for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep .2; done
+          set +e
+          cd capture
+          timeout 300 gradle --no-daemon runClient --args='--width 1280 --height 720' > ../logs/minecraft.log 2>&1
+          STATUS=$?
+          cd ..
+          set -e
+          kill "$XPID" 2>/dev/null || true
+          echo "status=$STATUS"
+          grep '\[KushCapture\]' logs/minecraft.log || true
+          find capture/run/kush-captures -type f -name '*.png' -printf '%f %s bytes\n' || true
+          if [ "$STATUS" -ne 0 ]; then tail -200 logs/minecraft.log || true; exit "$STATUS"; fi
+          test -f capture/run/kush-captures/01-main-menu.png
+          test -f capture/run/kush-captures/03-kush-mods-hud.png
+          test -f capture/run/kush-captures/08-right-shift.png
+          test -f capture/run/kush-captures/09-minecraft-ui.png
+
+      - name: Upload current JAR
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kush-Fan-current-jar
+          path: |
+            dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar
+            dist/SHA256.txt
+          retention-days: 90
+
+      - name: Upload real screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kush-Fan-real-Minecraft-screenshots
+          path: capture/run/kush-captures/*.png
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kush-Fan-capture-logs
+          path: logs/*
+          retention-days: 14
