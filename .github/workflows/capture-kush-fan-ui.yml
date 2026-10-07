@@ -27,7 +27,7 @@ jobs:
       - name: Install virtual display tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xdotool scrot openbox x11-utils wmctrl
+          sudo apt-get install -y xvfb x11-utils
 
       - name: Build FastClient HUD base
         run: |
@@ -78,10 +78,11 @@ jobs:
           unzip -t dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar | tail -1
           sha256sum dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar > dist/SHA256.txt
 
-      - name: Prepare empty Fabric capture client
+      - name: Prepare Fabric capture client and framebuffer driver
         run: |
-          mkdir -p capture-runner/run/mods capture-runner/run/screenshots
+          mkdir -p capture-runner/run/mods capture-runner/src/main/java/dev/kush/capture capture-runner/src/main/resources
           cp dist/FastClient-HUD-Kush-Fan-Edition-1.21.11.jar capture-runner/run/mods/
+
           cat > capture-runner/settings.gradle <<'EOF'
           pluginManagement {
               repositories {
@@ -92,6 +93,7 @@ jobs:
           }
           rootProject.name = 'kush-ui-capture'
           EOF
+
           cat > capture-runner/build.gradle <<'EOF'
           plugins {
               id 'net.fabricmc.fabric-loom-remap' version '1.18.2'
@@ -119,6 +121,216 @@ jobs:
               }
           }
           EOF
+
+          cat > capture-runner/src/main/resources/fabric.mod.json <<'EOF'
+          {
+            "schemaVersion": 1,
+            "id": "kush-capture-driver",
+            "version": "1.0.0",
+            "name": "Kush UI Capture Driver",
+            "environment": "client",
+            "entrypoints": {
+              "client": ["dev.kush.capture.CaptureDriver"]
+            },
+            "depends": {
+              "fabricloader": ">=0.18.4",
+              "minecraft": "1.21.11",
+              "fabric-api": "*"
+            }
+          }
+          EOF
+
+          cat > capture-runner/src/main/java/dev/kush/capture/CaptureDriver.java <<'EOF'
+          package dev.kush.capture;
+
+          import net.fabricmc.api.ClientModInitializer;
+          import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+          import net.minecraft.client.Minecraft;
+          import net.minecraft.client.Screenshot;
+          import net.minecraft.client.gui.screens.Screen;
+          import net.minecraft.client.gui.screens.TitleScreen;
+
+          import java.lang.reflect.Field;
+          import java.lang.reflect.Method;
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+          import java.nio.file.StandardCopyOption;
+          import java.util.Comparator;
+          import java.util.stream.Stream;
+
+          public final class CaptureDriver implements ClientModInitializer {
+              private enum State {
+                  WAIT_TITLE,
+                  CAPTURE_MAIN,
+                  OPEN_MODS,
+                  CAPTURE_ALL,
+                  SET_HUD, CAPTURE_HUD,
+                  SET_RENDER, CAPTURE_RENDER,
+                  SET_MOVEMENT, CAPTURE_MOVEMENT,
+                  SET_PLAYER, CAPTURE_PLAYER,
+                  SET_UTILITY, CAPTURE_UTILITY,
+                  OPEN_OVERLAY, CAPTURE_OVERLAY,
+                  OPEN_VANILLA, CAPTURE_VANILLA,
+                  DONE
+              }
+
+              private static State state = State.WAIT_TITLE;
+              private static int waitTicks = 0;
+              private static int stableTitleTicks = 0;
+              private static boolean capturing = false;
+              private static boolean toggledToVanilla = false;
+
+              @Override
+              public void onInitializeClient() {
+                  ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
+                  System.out.println("[KushCapture] Framebuffer capture driver initialized");
+              }
+
+              private static void tick(Minecraft client) {
+                  try {
+                      if (capturing) return;
+                      if (waitTicks > 0) {
+                          waitTicks--;
+                          return;
+                      }
+
+                      switch (state) {
+                          case WAIT_TITLE -> {
+                              if (client.screen instanceof TitleScreen) {
+                                  stableTitleTicks++;
+                                  if (stableTitleTicks >= 80) state = State.CAPTURE_MAIN;
+                              } else {
+                                  stableTitleTicks = 0;
+                              }
+                          }
+                          case CAPTURE_MAIN -> capture(client, "01-main-menu", State.OPEN_MODS);
+                          case OPEN_MODS -> {
+                              openScreen(client, "net.fastclient.hud.gui.screens.ClickGUIScreen");
+                              waitTicks = 60;
+                              state = State.CAPTURE_ALL;
+                          }
+                          case CAPTURE_ALL -> {
+                              setCategory(client, null);
+                              capture(client, "02-kush-mods-all", State.SET_HUD);
+                          }
+                          case SET_HUD -> setCategoryAndAdvance(client, "HUD", State.CAPTURE_HUD);
+                          case CAPTURE_HUD -> capture(client, "03-kush-mods-hud", State.SET_RENDER);
+                          case SET_RENDER -> setCategoryAndAdvance(client, "RENDER", State.CAPTURE_RENDER);
+                          case CAPTURE_RENDER -> capture(client, "04-kush-mods-render", State.SET_MOVEMENT);
+                          case SET_MOVEMENT -> setCategoryAndAdvance(client, "MOVEMENT", State.CAPTURE_MOVEMENT);
+                          case CAPTURE_MOVEMENT -> capture(client, "05-kush-mods-movement", State.SET_PLAYER);
+                          case SET_PLAYER -> setCategoryAndAdvance(client, "PLAYER", State.CAPTURE_PLAYER);
+                          case CAPTURE_PLAYER -> capture(client, "06-kush-mods-player", State.SET_UTILITY);
+                          case SET_UTILITY -> setCategoryAndAdvance(client, "UTILITY", State.CAPTURE_UTILITY);
+                          case CAPTURE_UTILITY -> capture(client, "07-kush-mods-utility", State.OPEN_OVERLAY);
+                          case OPEN_OVERLAY -> {
+                              openScreen(client, "net.fastclient.hud.gui.screens.HudOverlayScreen");
+                              waitTicks = 60;
+                              state = State.CAPTURE_OVERLAY;
+                          }
+                          case CAPTURE_OVERLAY -> capture(client, "08-right-shift", State.OPEN_VANILLA);
+                          case OPEN_VANILLA -> {
+                              Class<?> pref = Class.forName("net.fastclient.hud.launcher.LauncherSkinPreference");
+                              Method isEnabled = pref.getDeclaredMethod("isFastClientSkinEnabled");
+                              Method toggle = pref.getDeclaredMethod("toggle");
+                              boolean enabled = (boolean) isEnabled.invoke(null);
+                              if (enabled) {
+                                  toggle.invoke(null);
+                                  toggledToVanilla = true;
+                              }
+                              client.setScreen(new TitleScreen());
+                              waitTicks = 80;
+                              state = State.CAPTURE_VANILLA;
+                          }
+                          case CAPTURE_VANILLA -> capture(client, "09-minecraft-ui", State.DONE);
+                          case DONE -> {
+                              System.out.println("[KushCapture] All captures completed");
+                              if (toggledToVanilla) {
+                                  try {
+                                      Class<?> pref = Class.forName("net.fastclient.hud.launcher.LauncherSkinPreference");
+                                      pref.getDeclaredMethod("toggle").invoke(null);
+                                  } catch (Throwable ignored) {}
+                              }
+                              try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                              System.exit(0);
+                          }
+                      }
+                  } catch (Throwable t) {
+                      t.printStackTrace();
+                      System.err.println("[KushCapture] Failed in state " + state);
+                      System.exit(2);
+                  }
+              }
+
+              private static void setCategoryAndAdvance(Minecraft client, String category, State next) throws Exception {
+                  setCategory(client, category);
+                  waitTicks = 35;
+                  state = next;
+              }
+
+              @SuppressWarnings({"rawtypes", "unchecked"})
+              private static void setCategory(Minecraft client, String categoryName) throws Exception {
+                  if (client.screen == null || !client.screen.getClass().getName().equals("net.fastclient.hud.gui.screens.ClickGUIScreen")) {
+                      openScreen(client, "net.fastclient.hud.gui.screens.ClickGUIScreen");
+                  }
+                  Object screen = client.screen;
+                  Class<?> screenClass = screen.getClass();
+                  Field selected = screenClass.getDeclaredField("selectedCategory");
+                  selected.setAccessible(true);
+
+                  Object category = null;
+                  if (categoryName != null) {
+                      Class<?> categoryClass = Class.forName("net.fastclient.hud.modules.Category");
+                      category = Enum.valueOf((Class<? extends Enum>) categoryClass.asSubclass(Enum.class), categoryName);
+                  }
+                  selected.set(screen, category);
+
+                  Method update = screenClass.getDeclaredMethod("updateModuleList");
+                  update.setAccessible(true);
+                  update.invoke(screen);
+                  System.out.println("[KushCapture] Category=" + (categoryName == null ? "ALL" : categoryName));
+              }
+
+              private static void openScreen(Minecraft client, String className) throws Exception {
+                  Object instance = Class.forName(className).getConstructor().newInstance();
+                  client.setScreen((Screen) instance);
+                  System.out.println("[KushCapture] Opened " + className);
+              }
+
+              private static void capture(Minecraft client, String name, State next) throws Exception {
+                  capturing = true;
+                  Path root = client.gameDirectory.resolve("kush-capture-temp").resolve(name);
+                  Path outputDir = client.gameDirectory.resolve("kush-captures");
+                  Files.createDirectories(root);
+                  Files.createDirectories(outputDir);
+                  System.out.println("[KushCapture] Capturing " + name);
+
+                  Screenshot.grab(root, client.mainRenderTarget, message -> client.execute(() -> {
+                      try {
+                          Path screenshots = root.resolve("screenshots");
+                          Path latest;
+                          try (Stream<Path> stream = Files.list(screenshots)) {
+                              latest = stream
+                                      .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".png"))
+                                      .max(Comparator.comparingLong(p -> p.toFile().lastModified()))
+                                      .orElseThrow();
+                          }
+                          Path out = outputDir.resolve(name + ".png");
+                          Files.copy(latest, out, StandardCopyOption.REPLACE_EXISTING);
+                          System.out.println("[KushCapture] Saved " + out.toAbsolutePath());
+                          state = next;
+                          waitTicks = 45;
+                          capturing = false;
+                      } catch (Throwable t) {
+                          t.printStackTrace();
+                          System.err.println("[KushCapture] Screenshot copy failed: " + name);
+                          System.exit(3);
+                      }
+                  }));
+              }
+          }
+          EOF
+
           cat > capture-runner/run/options.txt <<'EOF'
           onboardAccessibility:false
           fullscreen:false
@@ -131,10 +343,10 @@ jobs:
           narrator:0
           EOF
 
-      - name: Launch Minecraft and capture real UI
+      - name: Launch Minecraft and capture real framebuffer UI
         run: |
-          set -u
-          mkdir -p capture-runner/run/screenshots logs
+          set -euo pipefail
+          mkdir -p logs capture-runner/run/kush-captures
           Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset > logs/xvfb.log 2>&1 &
           XVFB_PID=$!
           export DISPLAY=:99
@@ -150,72 +362,27 @@ jobs:
             exit 1
           fi
 
-          openbox --display :99 > logs/openbox.log 2>&1 &
-          sleep 2
-
+          set +e
           cd capture-runner
-          gradle --no-daemon runClient --args='--width 1280 --height 720' > ../logs/minecraft.log 2>&1 &
-          MC_PID=$!
+          timeout 300 gradle --no-daemon runClient --args='--width 1280 --height 720' > ../logs/minecraft.log 2>&1
+          STATUS=$?
           cd ..
-
-          # Wait for Minecraft to finish loading its GUI atlas instead of depending on a window title.
-          LOADED=0
-          for i in $(seq 1 180); do
-            if grep -q 'minecraft:textures/atlas/gui.png-atlas' logs/minecraft.log 2>/dev/null; then LOADED=1; break; fi
-            if ! kill -0 "$MC_PID" 2>/dev/null; then break; fi
-            sleep 1
-          done
-          if [ "$LOADED" != "1" ]; then
-            echo 'Minecraft GUI did not finish loading'
-            tail -200 logs/minecraft.log || true
-            exit 1
-          fi
-          sleep 12
-
-          echo '--- visible windows ---' > logs/windows.txt
-          wmctrl -lG >> logs/windows.txt 2>&1 || true
-          xdotool search --onlyvisible --name '.' 2>/dev/null | while read -r w; do
-            echo "WINDOW $w" >> logs/windows.txt
-            xdotool getwindowname "$w" >> logs/windows.txt 2>&1 || true
-            xdotool getwindowgeometry "$w" >> logs/windows.txt 2>&1 || true
-          done
-
-          # Root capture is independent of the Minecraft window title/class.
-          scrot -o capture-runner/run/screenshots/01-main-menu.png
-
-          # Find the largest visible application window and focus it for interaction.
-          BEST=''
-          BEST_AREA=0
-          for w in $(xdotool search --onlyvisible --name '.' 2>/dev/null || true); do
-            eval "$(xdotool getwindowgeometry --shell "$w" 2>/dev/null || true)"
-            AREA=$(( ${WIDTH:-0} * ${HEIGHT:-0} ))
-            if [ "$AREA" -gt "$BEST_AREA" ]; then BEST="$w"; BEST_AREA="$AREA"; fi
-          done
-          echo "best_window=$BEST area=$BEST_AREA" >> logs/windows.txt
-          if [ -n "$BEST" ]; then
-            xdotool windowactivate --sync "$BEST" 2>/dev/null || xdotool windowfocus "$BEST" 2>/dev/null || true
-          fi
-
-          # Current Kush launcher UI: top-right Kush Mods button.
-          xdotool mousemove --sync 805 76 click 1 || true
-          sleep 5
-          scrot -o capture-runner/run/screenshots/02-kush-mods.png
-
-          xdotool key Escape || true
-          sleep 3
-          # MC button toggles back to vanilla UI.
-          xdotool mousemove --sync 1200 76 click 1 || true
-          sleep 5
-          scrot -o capture-runner/run/screenshots/03-minecraft-ui.png
-
-          # Diagnostic Right Shift capture.
-          xdotool key Shift_R || true
-          sleep 3
-          scrot -o capture-runner/run/screenshots/04-right-shift-diagnostic.png
-
-          kill "$MC_PID" 2>/dev/null || true
+          set -e
           kill "$XVFB_PID" 2>/dev/null || true
-          sleep 2
+
+          echo "Minecraft capture exit status: $STATUS"
+          grep '\[KushCapture\]' logs/minecraft.log || true
+          find capture-runner/run/kush-captures -maxdepth 1 -type f -name '*.png' -printf '%f %s bytes\n' || true
+
+          if [ "$STATUS" -ne 0 ]; then
+            tail -200 logs/minecraft.log || true
+            exit "$STATUS"
+          fi
+
+          test -f capture-runner/run/kush-captures/01-main-menu.png
+          test -f capture-runner/run/kush-captures/03-kush-mods-hud.png
+          test -f capture-runner/run/kush-captures/08-right-shift.png
+          test -f capture-runner/run/kush-captures/09-minecraft-ui.png
 
       - name: Upload current JAR
         if: always()
@@ -233,7 +400,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Kush-Fan-Edition-real-ui-screenshots
-          path: capture-runner/run/screenshots/*.png
+          path: capture-runner/run/kush-captures/*.png
           if-no-files-found: warn
           retention-days: 90
 
