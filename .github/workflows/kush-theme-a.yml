@@ -1,7 +1,7 @@
 name: KushMod theme A — native Minecraft screenshots
 on:
   push:
-    branches: [build/kush-theme-a-1.21.11, build/kush-v033-installer-tool]
+    branches: [build/kush-theme-a-1.21.11, build/kush-v034-drag-folder]
     paths: ['kush-theme/**', '.github/workflows/kush-theme-a.yml']
   workflow_dispatch:
 permissions:
@@ -41,7 +41,7 @@ jobs:
           cp kush-theme/capture/fabric.mod.json capture/src/main/resources/
           cp kush-theme/capture/CaptureDriver.java capture/src/main/java/dev/kush/capture/
           cp kush-theme/capture/options.txt capture/run/
-          cp dist/KushMod-1.21.11-v0.3.3.jar capture/run/mods/
+          cp dist/KushMod-1.21.11-v0.3.4.jar capture/run/mods/
           printf '\nlang:en_us\nmenuBackgroundBlurriness:4\n' >> capture/run/options.txt
       - name: Real Minecraft framebuffer captures
         run: |
@@ -67,7 +67,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-1.21.11-v0.3.3
+          name: KushMod-1.21.11-v0.3.4
           path: dist/*
           if-no-files-found: warn
           retention-days: 90
@@ -75,7 +75,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-v0.3.3-native-screenshots
+          name: KushMod-v0.3.4-native-screenshots
           path: capture/run/kush-captures/*.png
           if-no-files-found: warn
           retention-days: 90
@@ -83,7 +83,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-v0.3.3-test-logs
+          name: KushMod-v0.3.4-test-logs
           path: logs/*
           if-no-files-found: warn
           retention-days: 14

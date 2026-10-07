@@ -16,8 +16,8 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Gerador de Atualizações KushClient")]
 [assembly: AssemblyProduct("Gerador de Atualizações KushClient")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.0.1.0")]
+[assembly: AssemblyFileVersion("1.0.1.0")]
 
 namespace KushBuilder {
     public sealed class PackageInfo {
@@ -175,34 +175,63 @@ namespace KushBuilder {
         }
     }
 
+    public static class FolderDrop {
+        public static string Read(IDataObject data) {
+            Packager.Require(data != null && data.GetDataPresent(DataFormats.FileDrop), "Arraste uma pasta do Explorador de Arquivos para o gerador.");
+            var paths = data.GetData(DataFormats.FileDrop) as string[];
+            Packager.Require(paths != null && paths.Length == 1, "Arraste apenas uma pasta de atualização por vez.");
+            Packager.Require(Directory.Exists(paths[0]), "Extraia o ZIP antes e arraste a pasta completa, em vez de um arquivo.");
+            return Path.GetFullPath(paths[0]);
+        }
+    }
+
     public sealed class BuilderForm : Form {
         readonly TextBox folder = new TextBox(), version = new TextBox(), output = new TextBox(), log = new TextBox();
         readonly Button choose = new Button(), save = new Button(), build = new Button(), open = new Button(), cancel = new Button();
         readonly ProgressBar progress = new ProgressBar();
+        readonly Panel dropArea = new Panel();
         CancellationTokenSource active;
         readonly Color red = Color.FromArgb(239, 49, 60), field = Color.FromArgb(27, 27, 30);
         string lastOutput;
+        internal string SelectedFolder { get { return folder.Text; } }
+        internal string DetectedVersion { get { return version.Text; } }
         public BuilderForm() {
-            Text = "Gerador de Atualizações · KushClient"; ClientSize = new Size(760, 610);
-            MinimumSize = new Size(690, 635); StartPosition = FormStartPosition.CenterScreen;
+            Text = "Gerador de Atualizações · KushClient"; ClientSize = new Size(760, 674);
+            MinimumSize = new Size(776, 713); StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(13, 13, 16); ForeColor = Color.FromArgb(242, 242, 244);
             Font = new Font("Segoe UI", 10); AutoScaleMode = AutoScaleMode.Dpi;
             try { Icon = new Icon(Path.Combine(Packager.AppRoot, "kushclient.ico")); } catch { }
             var title = new Label { Text = "Gerar atualização do KushClient", Font = new Font("Segoe UI", 20, FontStyle.Bold), AutoSize = true, Left = 28, Top = 26 };
             var subtitle = new Label { Text = "Transforme a pasta completa da atualização em um instalador EXE.", AutoSize = true, Left = 30, Top = 73, ForeColor = Color.FromArgb(162, 162, 172) };
             Controls.Add(title); Controls.Add(subtitle);
-            Caption("1  PASTA DA ATUALIZAÇÃO", 118); Configure(folder, 147, 590); Configure(choose, "Selecionar", 147);
-            Caption("VERSÃO DETECTADA", 195); Configure(version, 224, 145); version.ReadOnly = true;
-            var note = new Label { Text = "A versão vem dos arquivos da pasta e será gravada dentro do EXE.", Top = 229, Left = 191, Width = 530, ForeColor = Color.FromArgb(153, 153, 163) }; Controls.Add(note);
-            Caption("2  ONDE SALVAR O INSTALADOR", 274); Configure(output, 303, 590); Configure(save, "Escolher", 303);
+            dropArea.SetBounds(30, 104, 700, 60); dropArea.BackColor = Color.FromArgb(30, 21, 25);
+            dropArea.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+            dropArea.Paint += (s, e) => { using (var pen = new Pen(red)) { pen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash; e.Graphics.DrawRectangle(pen, 0, 0, dropArea.Width - 1, dropArea.Height - 1); } };
+            var dropTitle = new Label { Text = "Arraste a pasta da atualização aqui", Dock = DockStyle.Top, Height = 32, TextAlign = ContentAlignment.BottomCenter, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
+            var dropHint = new Label { Text = "Ou escolha a pasta no botão Selecionar abaixo", Dock = DockStyle.Bottom, Height = 24, TextAlign = ContentAlignment.TopCenter, ForeColor = Color.FromArgb(175, 165, 173) };
+            dropArea.Controls.Add(dropTitle); dropArea.Controls.Add(dropHint); Controls.Add(dropArea);
+            Caption("1  PASTA DA ATUALIZAÇÃO", 182); Configure(folder, 211, 590); Configure(choose, "Selecionar", 211);
+            Caption("VERSÃO DETECTADA", 259); Configure(version, 288, 145); version.ReadOnly = true;
+            var note = new Label { Text = "A versão vem dos arquivos da pasta e será gravada dentro do EXE.", Top = 293, Left = 191, Width = 530, ForeColor = Color.FromArgb(153, 153, 163) }; Controls.Add(note);
+            Caption("2  ONDE SALVAR O INSTALADOR", 338); Configure(output, 367, 590); Configure(save, "Escolher", 367);
             output.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "Atualizacoes-KushClient");
-            log.SetBounds(30, 366, 700, 123); log.Multiline = true; log.ReadOnly = true; log.ScrollBars = ScrollBars.Vertical;
+            log.SetBounds(30, 430, 700, 123); log.Multiline = true; log.ReadOnly = true; log.ScrollBars = ScrollBars.Vertical;
             log.BackColor = field; log.ForeColor = Color.FromArgb(171, 171, 182); log.BorderStyle = BorderStyle.FixedSingle; log.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom;
-            Controls.Add(log); Append("Selecione a pasta que contém KushClient.exe, assets e runtime.");
-            progress.SetBounds(30, 503, 700, 5); progress.Style = ProgressBarStyle.Marquee; progress.Visible = false; progress.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom; Controls.Add(progress);
-            build.Text = "Gerar EXE"; build.SetBounds(540, 529, 190, 46); build.FlatStyle = FlatStyle.Flat; build.FlatAppearance.BorderColor = red; build.BackColor = red; build.ForeColor = Color.White; build.Anchor = AnchorStyles.Bottom | AnchorStyles.Right; Controls.Add(build);
-            open.Text = "Abrir pasta"; open.SetBounds(30, 533, 125, 38); open.FlatStyle = FlatStyle.Flat; open.BackColor = field; open.Enabled = false; open.Anchor = AnchorStyles.Left | AnchorStyles.Bottom; Controls.Add(open);
-            cancel.Text = "Cancelar"; cancel.SetBounds(397, 533, 125, 38); cancel.FlatStyle = FlatStyle.Flat; cancel.BackColor = field; cancel.Enabled = false; cancel.Anchor = AnchorStyles.Right | AnchorStyles.Bottom; Controls.Add(cancel);
+            Controls.Add(log); Append("Arraste ou selecione a pasta que contém KushClient.exe, assets e runtime.");
+            progress.SetBounds(30, 567, 700, 5); progress.Style = ProgressBarStyle.Marquee; progress.Visible = false; progress.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom; Controls.Add(progress);
+            build.Text = "Gerar EXE"; build.SetBounds(540, 593, 190, 46); build.FlatStyle = FlatStyle.Flat; build.FlatAppearance.BorderColor = red; build.BackColor = red; build.ForeColor = Color.White; build.Anchor = AnchorStyles.Bottom | AnchorStyles.Right; Controls.Add(build);
+            open.Text = "Abrir pasta"; open.SetBounds(30, 597, 125, 38); open.FlatStyle = FlatStyle.Flat; open.BackColor = field; open.Enabled = false; open.Anchor = AnchorStyles.Left | AnchorStyles.Bottom; Controls.Add(open);
+            cancel.Text = "Cancelar"; cancel.SetBounds(397, 597, 125, 38); cancel.FlatStyle = FlatStyle.Flat; cancel.BackColor = field; cancel.Enabled = false; cancel.Anchor = AnchorStyles.Right | AnchorStyles.Bottom; Controls.Add(cancel);
+            foreach (Control target in new Control[] { this, dropArea, dropTitle, dropHint, folder }) {
+                target.AllowDrop = true;
+                target.DragEnter += (s, e) => {
+                    e.Effect = DragDropEffects.None;
+                    if (active == null) try { FolderDrop.Read(e.Data); e.Effect = DragDropEffects.Copy; } catch (InvalidOperationException) { }
+                    dropArea.BackColor = e.Effect == DragDropEffects.Copy ? Color.FromArgb(64, 29, 36) : Color.FromArgb(30, 21, 25);
+                };
+                target.DragLeave += (s, e) => ResetDropArea();
+                target.DragDrop += (s, e) => { ResetDropArea(); ReceiveFolderDrop(e.Data); };
+            }
             choose.Click += (s, e) => {
                 using (var d = new FolderBrowserDialog { Description = "Pasta completa da atualização do KushClient", ShowNewFolderButton = false }) {
                     if (d.ShowDialog(this) != DialogResult.OK) return;
@@ -219,25 +248,31 @@ namespace KushBuilder {
         void Caption(string text, int y) { Controls.Add(new Label { Text = text, Left = 30, Top = y, AutoSize = true, Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(152, 152, 166) }); }
         void Configure(TextBox box, int y, int width) { box.SetBounds(30, y, width, 30); box.BackColor = field; box.ForeColor = ForeColor; box.BorderStyle = BorderStyle.FixedSingle; Controls.Add(box); if (width > 150) box.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top; }
         void Configure(Button button, string text, int y) { button.Text = text; button.SetBounds(632, y - 2, 98, 33); button.FlatStyle = FlatStyle.Flat; button.BackColor = field; button.Anchor = AnchorStyles.Top | AnchorStyles.Right; Controls.Add(button); }
+        void ResetDropArea() { dropArea.BackColor = Color.FromArgb(30, 21, 25); }
+        internal bool ReceiveFolderDrop(IDataObject data) {
+            if (active != null) return false;
+            try { folder.Text = FolderDrop.Read(data); LoadFolder(); return true; }
+            catch (Exception error) { Append(error.Message); return false; }
+        }
         void LoadFolder() { if (String.IsNullOrWhiteSpace(folder.Text)) return; try { version.Text = Packager.Inspect(folder.Text).Version; Append("Pasta pronta · versão " + version.Text); } catch (Exception error) { version.Clear(); Append(error.Message); } }
         void Append(string text) { if (IsDisposed) return; if (InvokeRequired) { BeginInvoke(new Action<string>(Append), text); return; } log.AppendText(text + Environment.NewLine); }
         async Task Generate() {
             if (active != null) return;
             try {
-                Packager.Inspect(folder.Text); Directory.CreateDirectory(output.Text);
+                version.Text = Packager.Inspect(folder.Text).Version; Directory.CreateDirectory(output.Text);
                 active = new CancellationTokenSource(); string selected = folder.Text, destination = output.Text; var token = active.Token;
-                folder.Enabled = output.Enabled = choose.Enabled = save.Enabled = build.Enabled = open.Enabled = false; cancel.Enabled = true; progress.Visible = true;
+                dropArea.Enabled = folder.Enabled = output.Enabled = choose.Enabled = save.Enabled = build.Enabled = open.Enabled = false; cancel.Enabled = true; progress.Visible = true;
                 lastOutput = await Task.Run(() => Packager.Build(selected, destination, Append, token)); open.Enabled = true;
                 MessageBox.Show(this, "Instalador pronto.\r\n\r\nNo painel → Atualizações, informe " + version.Text + " e envie:\r\n" + Path.GetFileName(lastOutput), "EXE gerado", MessageBoxButtons.OK, MessageBoxIcon.Information);
             } catch (OperationCanceledException) { Append("Geração cancelada. A pasta original foi preservada."); }
             catch (Exception error) { Append(error.Message); MessageBox.Show(this, error.Message, "Não foi possível gerar", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
-            finally { if (active != null) active.Dispose(); active = null; folder.Enabled = output.Enabled = choose.Enabled = save.Enabled = build.Enabled = true; cancel.Enabled = false; progress.Visible = false; }
+            finally { if (active != null) active.Dispose(); active = null; dropArea.Enabled = folder.Enabled = output.Enabled = choose.Enabled = save.Enabled = build.Enabled = true; cancel.Enabled = false; progress.Visible = false; }
         }
     }
     static class Program {
         [STAThread] static int Main(string[] args) {
-            if (args.Length > 0 && args[0] == "--self-test") return SelfTests.Run();
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
+            if (args.Length > 0 && args[0] == "--self-test") return SelfTests.Run();
             if (args.Length == 2 && args[0] == "--preview") {
                 using (var form = new BuilderForm()) {
                     form.Shown += (s, e) => { var timer = new System.Windows.Forms.Timer { Interval = 800 }; timer.Tick += (s2, e2) => { timer.Stop(); using (var bitmap = new Bitmap(form.Width, form.Height)) { form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size)); bitmap.Save(args[1]); } form.Close(); }; timer.Start(); };

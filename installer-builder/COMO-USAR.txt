@@ -1,10 +1,13 @@
-GERADOR DE ATUALIZAÇÕES KUSHCLIENT v1.0.0 — WINDOWS
+GERADOR DE ATUALIZAÇÕES KUSHCLIENT v1.0.1 — WINDOWS
 
 1. Extraia TODO o ZIP do gerador para uma pasta.
 2. Abra Gerador-Atualizacoes-KushClient.exe.
-3. Clique em Selecionar e escolha a pasta COMPLETA da nova atualização.
+3. Arraste a pasta COMPLETA da nova atualização para a área indicada no gerador.
+   Também pode clicar em Selecionar e escolher a pasta.
    É a pasta que contém KushClient.exe, os arquivos .py, assets e runtime.
    Se você recebeu um ZIP do launcher, extraia-o antes.
+   Arraste apenas uma pasta por vez. A pasta aparece no campo e sua versão
+   é identificada automaticamente. Soltar a pasta não a move nem altera.
 4. A ferramenta identifica a versão automaticamente e confere se os arquivos
    do launcher e do instalador usam a mesma versão.
 5. Escolha uma pasta de saída fora da pasta da atualização.
@@ -28,7 +31,7 @@ A assinatura do anúncio de atualização continua sendo feita pelo próprio pai
 O gerador não precisa receber sua chave privada nem suas credenciais.
 
 O JAR do KushMod é uma atualização do MOD, não uma pasta do launcher. Para usar
-o KushMod v0.3.3, substitua o JAR anterior na pasta mods do Fabric 1.21.11.
+o KushMod v0.3.4, substitua o JAR anterior na pasta mods do Fabric 1.21.11.
 Não selecione um JAR ou a pasta mods no gerador de instaladores do launcher.
 
 Antes de publicar uma versão para os usuários, execute o instalador gerado no

@@ -54,7 +54,7 @@ public final class KushImageResampler {
         g.drawImage(ink, -ink.getWidth()/2, -ink.getHeight()/2, null);g.dispose();
         return trimAlpha(rotated);
     }
-    private static BufferedImage trimAlpha(BufferedImage source) {
+    public static BufferedImage trimAlpha(BufferedImage source) {
         int left=source.getWidth(),right=-1,top=source.getHeight(),bottom=-1;
         for(int y=0;y<source.getHeight();y++)for(int x=0;x<source.getWidth();x++)
             if((source.getRGB(x,y)>>>24)>16){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}

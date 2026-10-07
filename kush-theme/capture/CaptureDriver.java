@@ -21,7 +21,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_HUD, CAPTURE_HUD, SET_RENDER, CAPTURE_RENDER,
         SET_MOVEMENT, CAPTURE_MOVEMENT, SET_PLAYER, CAPTURE_PLAYER,
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
-        OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
+        OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
         OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, DONE
     }
@@ -31,6 +31,10 @@ public final class CaptureDriver implements ClientModInitializer {
     private static boolean capturing;
 
     public void onInitializeClient() {
+        String loaded = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("fastclient-hud")
+            .orElseThrow().getMetadata().getVersion().getFriendlyString();
+        if (!loaded.equals("1.0.72+kush.0.3.4")) throw new IllegalStateException("Wrong test JAR: " + loaded);
+        System.out.println("[KushCapture] loaded KushMod=" + loaded);
         ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
         System.out.println("[KushCapture] initialized");
         for(String name:new String[]{"net.fastclient.core.equip.CosmeticsAvailability","net.fastclient.hud.web.StoreAvailability"}) {
@@ -50,7 +54,7 @@ public final class CaptureDriver implements ClientModInitializer {
                         if (++stableTicks >= 80) state = State.CAPTURE_MAIN;
                     } else stableTicks = 0;
                 }
-                case CAPTURE_MAIN -> capture(client, "01-main-menu", State.OPEN_MODS);
+                case CAPTURE_MAIN -> capture(client, "01-main-menu", State.SET_TOOL_HOVER);
                 case SET_MAIN_HOVER -> { cursor(client,640,327);waitTicks=35;state=State.CAPTURE_MAIN_HOVER; }
                 case CAPTURE_MAIN_HOVER -> capture(client,"16-main-menu-hover",State.SET_TOOL_HOVER);
                 case SET_TOOL_HOVER -> { cursor(client,1110,42);waitTicks=35;state=State.CAPTURE_TOOL_HOVER; }
@@ -83,8 +87,10 @@ public final class CaptureDriver implements ClientModInitializer {
                     waitTicks=45;state=State.CAPTURE_INSTALLED;
                 }
                 case CAPTURE_INSTALLED -> capture(client,"10-installed-mods",State.OPEN_CONFIG);
-                case OPEN_CONFIG -> { openConfig(client);waitTicks=45;state=State.CAPTURE_CONFIG; }
-                case CAPTURE_CONFIG -> capture(client,"11-module-settings",State.OPEN_DROPDOWN);
+                case OPEN_CONFIG -> { setFpsEnabled(false);openConfig(client);waitTicks=45;state=State.CAPTURE_CONFIG; }
+                case CAPTURE_CONFIG -> capture(client,"11-module-settings",State.ENABLE_CONFIG);
+                case ENABLE_CONFIG -> { setFpsEnabled(true);openConfig(client);waitTicks=45;state=State.CAPTURE_ACTIVE_CONFIG; }
+                case CAPTURE_ACTIVE_CONFIG -> capture(client,"20-active-module-header",State.OPEN_DROPDOWN);
                 case OPEN_DROPDOWN -> { expandDropdown(client);waitTicks=40;state=State.CAPTURE_DROPDOWN; }
                 case CAPTURE_DROPDOWN -> capture(client,"18-dropdown-expanded",State.OPEN_LONG_CONFIG);
                 case OPEN_LONG_CONFIG -> {
@@ -174,6 +180,11 @@ public final class CaptureDriver implements ClientModInitializer {
         Object mod=fpsModule();Class<?> c=Class.forName("net.fastclient.hud.gui.screens.ModuleConfigScreen");
         client.setScreen((Screen)c.getConstructor(Class.forName("net.fastclient.hud.modules.Module"),Screen.class)
             .newInstance(mod,client.screen));
+    }
+    private static void setFpsEnabled(boolean enabled) throws Exception {
+        Object mod = fpsModule();
+        if ((boolean)mod.getClass().getMethod("isEnabled").invoke(mod) != enabled)
+            manager().getClass().getMethod("toggleModule",Class.forName("net.fastclient.hud.modules.Module")).invoke(manager(),mod);
     }
     private static void enableHud() throws Exception {
         Object m=manager();int count=0;

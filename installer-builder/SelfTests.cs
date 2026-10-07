@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Drawing;
+using System.Windows.Forms;
 
 namespace KushBuilder {
     public static class SelfTests {
@@ -33,6 +35,19 @@ namespace KushBuilder {
                 var info = Packager.Inspect(fixture); Packager.Require(info.Version == "0.9.17", "Versão detectada incorreta.");
                 Packager.Require(!info.Files.Any(p => p.EndsWith("accounts.json") || p.EndsWith(".env") || p.EndsWith(".pem") || p.Contains("saves")), "Dados privados entraram no payload.");
                 results.Add("Seleção dos arquivos do programa, sem incluir contas, mundos ou chaves");
+                using (var form = new BuilderForm()) {
+                    var drop = new DataObject(DataFormats.FileDrop, new[] { fixture });
+                    Packager.Require(form.ReceiveFolderDrop(drop), "A pasta arrastada foi rejeitada.");
+                    Packager.Require(form.SelectedFolder == Path.GetFullPath(fixture) && form.DetectedVersion == "0.9.17", "Arrastar a pasta não atualizou a entrada e a versão.");
+                    form.Show(); Application.DoEvents();
+                    using (var bitmap = new Bitmap(form.Width, form.Height)) { form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size)); bitmap.Save(Path.Combine(root, "PREVIA-PASTA-ARRASTADA.png")); }
+                    form.Close();
+                }
+                results.Add("Pasta arrastada preenche o campo e detecta a versão na janela");
+                ExpectFailure(() => FolderDrop.Read(new DataObject(DataFormats.FileDrop, new[] { Path.Combine(fixture, "KushClient.exe") })), "arquivo arrastado");
+                ExpectFailure(() => FolderDrop.Read(new DataObject(DataFormats.FileDrop, new[] { fixture, root })), "várias pastas arrastadas");
+                ExpectFailure(() => FolderDrop.Read(new DataObject()), "arraste sem pasta");
+                results.Add("Arrastar rejeita arquivos, várias pastas e dados sem pasta");
                 File.WriteAllText(Path.Combine(fixture, "core.py"), "VERSION = '0.9.18'\n"); ExpectFailure(() => Packager.Inspect(fixture), "versões diferentes");
                 File.WriteAllText(Path.Combine(fixture, "core.py"), "VERSION = '0.9.17'\n"); results.Add("Rejeição de versões divergentes");
                 File.WriteAllText(Path.Combine(fixture, "release-config.json"), "{\"version\":\"00.9.17\"}"); ExpectFailure(() => Packager.Inspect(fixture), "versão inválida");

@@ -1,7 +1,7 @@
 name: KushClient - Windows update builder
 on:
   push:
-    branches: [build/kush-v033-installer-tool]
+    branches: [build/kush-v034-drag-folder]
     paths: ['installer-builder/**', '.github/workflows/installer-builder.yml']
   workflow_dispatch:
 permissions:
@@ -49,6 +49,7 @@ jobs:
           python installer-builder/validate_payload.py build/extracted build/Gerador/VALIDACAO-INSTALADOR.json
           if ($LASTEXITCODE -ne 0) { throw 'Installer integrity tests failed' }
           Copy-Item build/Gerador/test-output/VALIDACAO.json build/Gerador/VALIDACAO-GERADOR.json
+          Copy-Item build/Gerador/test-output/PREVIA-PASTA-ARRASTADA.png build/Gerador/PREVIA-PASTA-ARRASTADA.png
       - name: UI preview and package
         shell: pwsh
         run: |
@@ -58,11 +59,11 @@ jobs:
           New-Item -ItemType Directory -Force build/Gerador/Fontes | Out-Null
           Copy-Item installer-builder/*.cs build/Gerador/Fontes
           Copy-Item installer-builder/COMO-USAR.txt build/Gerador
-          Compress-Archive build/Gerador/* build/Gerador-Atualizacoes-KushClient-v1.0.0.zip
+          Compress-Archive build/Gerador/* build/Gerador-Atualizacoes-KushClient-v1.0.1.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: Gerador-Atualizacoes-KushClient-v1.0.0
-          path: build/Gerador-Atualizacoes-KushClient-v1.0.0.zip
+          name: Gerador-Atualizacoes-KushClient-v1.0.1
+          path: build/Gerador-Atualizacoes-KushClient-v1.0.1.zip
           retention-days: 90
       - uses: actions/upload-artifact@v4
         if: always()
@@ -73,3 +74,4 @@ jobs:
             build/Gerador/test-output/*.txt
             build/Gerador/test-output/*.json
             build/Gerador/PREVIA-GERADOR.png
+            build/Gerador/PREVIA-PASTA-ARRASTADA.png
