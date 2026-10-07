@@ -21,7 +21,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_HUD, CAPTURE_HUD, SET_RENDER, CAPTURE_RENDER,
         SET_MOVEMENT, CAPTURE_MOVEMENT, SET_PLAYER, CAPTURE_PLAYER,
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
-        OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN,
+        OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
         OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, DONE
     }
@@ -86,7 +86,18 @@ public final class CaptureDriver implements ClientModInitializer {
                 case OPEN_CONFIG -> { openConfig(client);waitTicks=45;state=State.CAPTURE_CONFIG; }
                 case CAPTURE_CONFIG -> capture(client,"11-module-settings",State.OPEN_DROPDOWN);
                 case OPEN_DROPDOWN -> { expandDropdown(client);waitTicks=40;state=State.CAPTURE_DROPDOWN; }
-                case CAPTURE_DROPDOWN -> capture(client,"18-dropdown-expanded",State.START_DEMO);
+                case CAPTURE_DROPDOWN -> capture(client,"18-dropdown-expanded",State.OPEN_LONG_CONFIG);
+                case OPEN_LONG_CONFIG -> {
+                    Object chosen = null;
+                    for(Object mod:(java.util.List<?>)manager().getClass().getMethod("getModules").invoke(manager())) {
+                        String name = mod.getClass().getMethod("getDisplayName").invoke(mod).toString();
+                        if(chosen == null || name.length() > chosen.getClass().getMethod("getDisplayName").invoke(chosen).toString().length()) chosen = mod;
+                    }
+                    Class<?> c=Class.forName("net.fastclient.hud.gui.screens.ModuleConfigScreen");
+                    client.setScreen((Screen)c.getConstructor(Class.forName("net.fastclient.hud.modules.Module"),Screen.class).newInstance(chosen,client.screen));
+                    waitTicks=45;state=State.CAPTURE_LONG_CONFIG;
+                }
+                case CAPTURE_LONG_CONFIG -> capture(client,"19-long-module-header",State.START_DEMO);
                 case START_DEMO -> {
                     client.setScreen(new TitleScreen());
                     waitTicks=60;state=State.WAIT_WORLD;stableTicks=0;

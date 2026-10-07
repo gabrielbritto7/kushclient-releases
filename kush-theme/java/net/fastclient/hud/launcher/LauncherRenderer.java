@@ -48,7 +48,7 @@ public final class LauncherRenderer {
         renderSkinToggle(g,font,w,h,mx,my);int x=toggleBounds(w)[0]-10-48;
         icon(g,font,"box","\ue2c8","Resource packs",null,x,18,48,mx,my);x-=58;
         icon(g,font,"settings","\ue8b8","Configurações do Minecraft",null,x,18,48,mx,my);x-=58;
-        icon(g,font,"window",null,"Kush Mods",KushAssets.RED_K,x,18,48,mx,my);
+        icon(g,font,"window",null,"Kush Mods",KushAssets.PIXEL_RED_K,x,18,48,mx,my);
     }
     public static void renderSkinToggle(class_332 g,class_327 font,int w,int h,int mx,int my) {
         int[] r=toggleBounds(w);int x=r[0],y=r[1];
@@ -92,7 +92,7 @@ public final class LauncherRenderer {
         class_2561 c=class_2561.method_43470(label);
         int tw=font.method_27525((class_5348)c)*2, iw=18, gap=10, contentX=x+(w-tw-iw-gap)/2;
         int inkTop=y+h/2-9;
-        if(icon.equals("kush"))KushAssets.labelK(g,contentX-3,inkTop,16,-1);
+        if(icon.equals("kush"))KushAssets.pixelLabelK(g,contentX-3,inkTop,18,hovered);
         else KushAssets.symbol(g,icon,contentX,inkTop,iw,hovered?0xFFFFDFE1:0xFFBEB8BE);
         text(g,font,c,contentX+iw+gap+tw/2,y+h/2,2f,TEXT);
     }
@@ -102,7 +102,7 @@ public final class LauncherRenderer {
     }
     private static void icon(class_332 g,class_327 font,String id,String glyph,String label,class_2960 texture,int x,int y,int s,int mx,int my){
         REGIONS.put(id,new int[]{x,y,s,s});boolean hover=hit(x,y,s,s,mx,my);surface(g,id,x,y,s,s,hover,false);
-        if(texture!=null)KushAssets.image(g,texture,x+9,y+9,s-18,s-18,1254,1254,-1);
+        if(texture!=null)KushAssets.image(g,hover?KushAssets.PIXEL_RED_K:KushAssets.PIXEL_GRAY_K,x+8,y+7,s-16,s-14,1254,1254,-1);
         else KushAssets.symbol(g,id.equals("box")?"folder":"gear",x+12,y+12,s-24,hover?0xFFFFCDD5:0xFFB4A4AC);
         if(hover)tooltip(g,font,label,x+s/2,y+s+8);
     }

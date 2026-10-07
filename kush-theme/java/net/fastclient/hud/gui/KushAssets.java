@@ -19,7 +19,9 @@ public final class KushAssets {
     public static final class_2960 RED_K = texture("k_red.png");
     public static final class_2960 WHITE_K = texture("k_white.png");
     public static final class_2960 WORDMARK = texture("wordmark.png");
-    private static final class_2960 GRAY_WORDMARK = texture("wordmark_gray_runtime");
+    private static final class_2960 GRAY_WORDMARK = texture("wordmark_gray.png");
+    public static final class_2960 PIXEL_RED_K = texture("k_pixel_red.png");
+    public static final class_2960 PIXEL_GRAY_K = texture("k_pixel_gray.png");
     private static final class_2960 LABEL_K = texture("k_white_label_runtime");
     private static final class_2960 BACKGROUND = texture("menu-landscape.png");
     private static final Map<class_2960, BufferedImage> SOURCES = new HashMap<>();
@@ -70,6 +72,16 @@ public final class KushAssets {
             image(g, WHITE_K, x, top, capHeight, capHeight, 1246, 1263, color);
         }
     }
+    /** New pixel K in other menus; the Right Shift glyph stays unchanged. */
+    public static void pixelLabelK(class_332 g, int x, int top, int capHeight, boolean hovered) {
+        class_2960 id = hovered ? PIXEL_RED_K : PIXEL_GRAY_K;
+        try {
+            BufferedImage glyph = source(id);
+            image(g, id, x, top, capHeight, capHeight, glyph.getWidth(), glyph.getHeight(), -1);
+        } catch (Exception unavailable) {
+            image(g, id, x, top, capHeight, capHeight, 1254, 1254, -1);
+        }
+    }
     public static void symbol(class_332 g, String name, int x, int y, int size, int color) {
         int pw = physicalWidth(size), ph = physicalHeight(size);
         String key = "symbol/" + name + "@" + pw + "x" + ph;
@@ -97,20 +109,13 @@ public final class KushAssets {
     private static BufferedImage source(class_2960 id) throws Exception {
         BufferedImage source = SOURCES.get(id);
         if (source != null) return source;
-        class_2960 resource = id.equals(GRAY_WORDMARK) ? WORDMARK : id.equals(LABEL_K) ? WHITE_K : id;
+        class_2960 resource = id.equals(LABEL_K) ? WHITE_K : id;
         try (InputStream stream = KushAssets.class.getResourceAsStream("/assets/" + resource.method_12836() + "/" + resource.method_12832())) {
             if (stream == null) throw new IllegalArgumentException("Missing original PNG " + resource);
             source = ImageIO.read(stream);
         }
         if (source == null) throw new IllegalArgumentException("Invalid original PNG " + resource);
         if (id.equals(LABEL_K)) source = KushImageResampler.uprightGlyph(source, 5.0);
-        if (id.equals(GRAY_WORDMARK)) {
-            for (int y = 0; y < source.getHeight(); y++) for (int x = 0; x < source.getWidth(); x++) {
-                int argb = source.getRGB(x, y);
-                int luma = Math.min(255, Math.round(1.3f * (.2126f * ((argb >>> 16) & 255) + .7152f * ((argb >>> 8) & 255) + .0722f * (argb & 255))));
-                source.setRGB(x, y, (argb & 0xFF000000) | luma << 16 | luma << 8 | luma);
-            }
-        }
         SOURCES.put(id, source);
         return source;
     }

@@ -93,7 +93,7 @@ p.write_text(s)
 
 p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
 s=s.replace('"FastClientHUD"','"Kush Mods"')
-s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.2  ·  Minecraft 1.21.11"')
+s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.3  ·  Minecraft 1.21.11"')
 s=s.replace('"MOD MENU"','"KUSH MODS"')
 s=s.replace('"All" : categories', '"Todos" : categories')
 s=s.replace('"Search"','"Buscar"')
@@ -237,7 +237,7 @@ s=s.replace('this.drawScaledText(graphics, FastClientFonts.filledMaterialSymbol(
     'net.fastclient.hud.gui.KushAssets.symbol(graphics, "gear", leftX+3, chipY+3, chipSize-6, FastClientUI.fade(settingsHovered ? -723724 : -7303024, 235));')
 p.write_text(s)
 
-props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.2').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
+props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.3').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
 props.write_text(s)
 print('Theme applied')
 
@@ -261,3 +261,9 @@ p=JAVA/'gui/screens/HudOverlayScreen.java';s=p.read_text().replace('            
 for p in (JAVA/'gui').rglob('*.java'):
     s=p.read_text().replace('"Enabled"', '"Ativo"').replace('"Disabled"', '"Inativo"')
     p.write_text(s)
+
+
+# Unified single-line module header.
+p=JAVA/'gui/screens/ModuleConfigScreen.java';s=p.read_text()
+s=re.sub(r'    private void drawHeader\(.*?(?=    private void drawFooter)', lambda _:'    private void drawHeader(class_332 graphics, int x, int y, int w, int alpha) {\n        this.backBtnX = x + 16;\n        this.backBtnY = y + 18;\n        FastClientUI.roundedRect(graphics, this.backBtnX, this.backBtnY, this.backBtnSize, this.backBtnSize, 0, FastClientUI.fade(0xA51D171C, alpha));\n        String backLabel = "\\u2190";\n        this.drawUiText(graphics, backLabel, this.backBtnX + (this.backBtnSize - this.uiTextWidth(backLabel)) / 2, this.backBtnY + (this.backBtnSize - this.uiLineHeight()) / 2 + 1, FastClientUI.fade(-7303024, alpha));\n        int iconSize = 32, iconX = x + 56, iconY = y + 17;\n        FastClientUI.roundedRect(graphics, iconX, iconY, iconSize, iconSize, 0, FastClientUI.fade(0xA51D171C, alpha));\n        graphics.method_25291(class_10799.field_56883, FastClientUI.icon(this.module), iconX + 5, iconY + 5, 0.0f, 0.0f, 22, 22, 22, 22, FastClientUI.fade(-1, alpha));\n        String status;\n        int statusColor;\n        if (this.module.isHotkeyOnly()) {\n            boolean hasKey = this.module.getKeyBinding() != 0;\n            status = hasKey ? "Tecla definida" : "Defina uma tecla";\n            statusColor = hasKey ? 0xFFE53542 : -7303024;\n        } else {\n            status = this.module.isEnabled() ? "Ativo" : "Inativo";\n            statusColor = this.module.isEnabled() ? 0xFFE53542 : -7303024;\n        }\n        graphics.method_25294(x, y, x + w, y + 2, FastClientUI.fade(this.module.isEnabled() ? 0xFFE53542 : 0x507B3A44, alpha));\n        int textX = x + 100, centerY = y + 33, gap = 14;\n        net.minecraft.class_2561 name = FastClientFonts.title(this.module.getDisplayName());\n        int rawWidth = this.field_22793.method_27525(name);\n        int room = Math.max(1, x + w - 24 - textX - this.uiTextWidth(status) - gap);\n        float scale = Math.min(FastClientFonts.titleScale(), room / (float)Math.max(1, rawWidth));\n        graphics.method_51448().pushMatrix();\n        graphics.method_51448().translate(textX, centerY - 4.5f * scale);\n        graphics.method_51448().scale(scale, scale);\n        graphics.method_51439(this.field_22793, name, 0, 0, FastClientUI.fade(-723724, alpha), false);\n        graphics.method_51448().popMatrix();\n        this.drawUiText(graphics, status, textX + Math.round(rawWidth * scale) + gap,\n            centerY - this.uiLineHeight() / 2, FastClientUI.fade(statusColor, alpha));\n        String desc = this.fitBodyText(this.module.getDescription() == null ? "" : this.module.getDescription(), w - 116);\n        this.drawUiText(graphics, desc, textX, y + 64, FastClientUI.fade(-7303024, alpha));\n        graphics.method_25294(x + 14, y + 92, x + w - 14, y + 93, FastClientUI.fade(0xFF281A20, alpha));\n    }\n\n', s, flags=re.S)
+p.write_text(s)
