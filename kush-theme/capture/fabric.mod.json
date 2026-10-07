@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "kush-capture-driver",
+  "version": "1.0.0",
+  "name": "Kush UI Capture Driver",
+  "environment": "client",
+  "entrypoints": {"client": ["dev.kush.capture.CaptureDriver"]},
+  "depends": {"fabricloader": ">=0.18.4", "minecraft": "1.21.11", "fabric-api": "*"}
+}

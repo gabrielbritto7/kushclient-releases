@@ -1,0 +1,20 @@
+plugins { id 'net.fabricmc.fabric-loom-remap' version '1.18.2' }
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+dependencies {
+    minecraft 'com.mojang:minecraft:1.21.11'
+    mappings loom.officialMojangMappings()
+    modImplementation 'net.fabricmc:fabric-loader:0.18.4'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.6+1.21.11'
+}
+loom {
+    runs {
+        client {
+            client()
+            name 'Kush Capture'
+            runDir 'run'
+        }
+    }
+}

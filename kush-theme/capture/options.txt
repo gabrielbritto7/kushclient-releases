@@ -1,0 +1,9 @@
+onboardAccessibility:false
+fullscreen:false
+guiScale:2
+renderDistance:2
+simulationDistance:5
+maxFps:30
+enableVsync:false
+skipMultiplayerWarning:true
+narrator:0
