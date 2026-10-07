@@ -90,7 +90,11 @@ public final class CaptureDriver implements ClientModInitializer {
                         if(stableTicks>1800)throw new IllegalStateException("Demo test world did not load: "+client.screen);
                     }
                 }
-                case CAPTURE_WORLD -> capture(client,"12-hud-in-game",State.OPEN_WORLD_OVERLAY);
+                case CAPTURE_WORLD -> {
+                    if(client.screen!=null && client.screen.getClass().getName().endsWith("DemoIntroScreen")) {
+                        client.setScreen(null);waitTicks=40;
+                    } else capture(client,"12-hud-in-game",State.OPEN_WORLD_OVERLAY);
+                }
                 case OPEN_WORLD_OVERLAY -> {open(client,"net.fastclient.hud.gui.screens.HudOverlayScreen");waitTicks=50;state=State.CAPTURE_WORLD_OVERLAY;}
                 case CAPTURE_WORLD_OVERLAY -> capture(client,"13-right-shift-in-game",State.OPEN_WORLD_CONFIG);
                 case OPEN_WORLD_CONFIG -> {openConfig(client);waitTicks=50;state=State.CAPTURE_WORLD_CONFIG;}

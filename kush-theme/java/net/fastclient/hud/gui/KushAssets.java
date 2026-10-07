@@ -56,8 +56,11 @@ public final class KushAssets {
         g.method_25294(0, 0, w, h, 0x9910090D);
     }
     public static void glass(class_332 g, int x, int y, int w, int h, int alpha) {
-        FastClientUI.roundedRect(g, x-2, y+4, w+4, h+3, 12, FastClientUI.withAlpha(0xFF000000, Math.round(alpha*0.16f)));
-        FastClientUI.borderedRoundedRect(g, x, y, w, h, 10, FastClientUI.fade(0xA6141115, alpha), FastClientUI.fade(0x607B3A44, alpha));
+        FastClientUI.roundedRect(g, x-2, y+4, w+4, h+3, 12, FastClientUI.withAlpha(0xFF000000, Math.round(alpha*0.10f)));
+        // A translucent border filled across the panel adds another dark layer.
+        // Keep it on the perimeter so the scene remains visible through glass.
+        FastClientUI.roundedRect(g, x, y, w, h, 10, FastClientUI.fade(0x740E0C10, alpha));
+        FastClientUI.roundedOutline(g, x, y, w, h, 10, FastClientUI.fade(0x607B3A44, alpha));
         g.method_25294(x+12, y+1, x+w-12, y+2, FastClientUI.withAlpha(0xFFF5CAD3, Math.round(alpha*0.16f)));
         g.method_25294(x+12, y+2, x+w-12, y+32, FastClientUI.withAlpha(0xFF7B3A44, Math.round(alpha*0.025f)));
     }
