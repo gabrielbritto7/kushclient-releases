@@ -25,6 +25,9 @@ public final class KushInstalledModsScreen extends class_437 {
             .filter(m->m.getContainingMod().isEmpty())
             .sorted(Comparator.comparing(m->m.getMetadata().getName(),String.CASE_INSENSITIVE_ORDER)).toList();
     }
+    // Screen's wrapper invokes renderBackground before render. The backdrop
+    // below owns the native blur, so the inherited background must not blur too.
+    @Override public void method_25420(class_332 g,int mx,int my,float delta) {}
     @Override public void method_25394(class_332 g,int mx,int my,float delta) {
         g.method_71278();DisplaySpace.push(g);int w=DisplaySpace.width(),h=DisplaySpace.height();
         KushAssets.backdrop(g,w,h);g.method_25294(0,0,w,h,0x60000000);

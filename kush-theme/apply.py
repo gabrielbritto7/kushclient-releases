@@ -49,6 +49,10 @@ s=s.replace('ACTIVE_TYPEFACE = Typeface.MINECRAFT_DEFAULT', 'ACTIVE_TYPEFACE = T
 s=s.replace('return ACTIVE_TYPEFACE == Typeface.MINECRAFT_DEFAULT ? 2.0f : 1.0f;', 'return 1.75f;')
 p.write_text(s)
 
+p=JAVA/'gui/widgets/ModuleCard.java';s=p.read_text()
+s=s.replace('float titleScale = FastClientFonts.titleScale();', 'float titleScale = 1.35f;')
+p.write_text(s)
+
 p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
 s=s.replace('"FastClientHUD"','"Kush Mods"')
 s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.0  ·  Minecraft 1.21.11"')
@@ -86,9 +90,9 @@ p.write_text(s)
 
 p=JAVA/'gui/screens/ModuleConfigScreen.java';s=p.read_text()
 s=s.replace('        int pxMouseX = DisplaySpace.mouseX(mouseX);','        graphics.method_71278();\n        int pxMouseX = DisplaySpace.mouseX(mouseX);',1)
-s=s.replace('        this.method_25420(graphics, pxMouseX, pxMouseY, delta);','        net.fastclient.hud.gui.KushAssets.backdrop(graphics, DisplaySpace.width(), DisplaySpace.height());\n        this.method_25420(graphics, pxMouseX, pxMouseY, delta);',1)
+s=s.replace('        this.method_25420(graphics, pxMouseX, pxMouseY, delta);','        net.fastclient.hud.gui.KushAssets.backdrop(graphics, DisplaySpace.width(), DisplaySpace.height());',1)
 s=s.replace('FastClientUI.roundedRect(graphics, x, y, w, h, 7, FastClientUI.fade(0xA6141115, alpha));','net.fastclient.hud.gui.KushAssets.glass(graphics, x, y, w, h, alpha);')
-s=s.replace('FastClientUI.withAlpha(-16777216, 170)', 'FastClientUI.withAlpha(-16777216, 80)')
+s=s.replace('FastClientUI.fade(-16777216, 170)', 'FastClientUI.fade(-16777216, 55)')
 p.write_text(s)
 
 p=JAVA/'gui/screens/HudOverlayScreen.java';s=p.read_text()
@@ -98,7 +102,7 @@ s=s.replace('new String[][]{{"overlay_store", "\\uea12", "Store"}, {"overlay_cos
 s=s.replace('graphics.method_25291(class_10799.field_56883, DisplaySpace.texture(LOGO_TEXTURE), logoX, logoY, 0.0f, 0.0f, logoSize, logoSize, logoSize, logoSize, logoColor);','net.fastclient.hud.gui.KushAssets.image(graphics, LOGO_TEXTURE, logoX, logoY, logoSize, logoSize, 1254, 1254, logoColor);')
 s=s.replace('graphics.method_25293(class_10799.field_56883, DisplaySpace.texture(FAST_SETTINGS_ICON), contentX, iconY, 0.0f, 0.0f, iconWidth, iconWidth, 96, 96, 96, 96, color);','net.fastclient.hud.gui.KushAssets.image(graphics, FAST_SETTINGS_ICON, contentX, iconY, iconWidth, iconWidth, 1246, 1263, color);')
 s=s.replace('        DisplaySpace.push(graphics);\n        if (this.dragging == null)', '        if (this.dragging == null) graphics.method_71278();\n        DisplaySpace.push(graphics);\n        net.fastclient.hud.gui.KushAssets.backdrop(graphics, this.screenWidth(), this.screenHeight());\n        if (this.dragging == null)',1)
-s=s.replace('"Drag modules to reposition · Right-click for options · Right Shift to close"','"Arraste para mover · Clique direito para configurar · Right Shift para fechar"')
+s=re.sub(r'"Drag modules to reposition[^"\n]*"', '"Arraste para mover · Clique direito para configurar · Right Shift para fechar"',s)
 p.write_text(s)
 
 props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.0').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
