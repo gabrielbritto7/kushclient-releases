@@ -119,6 +119,7 @@ implements ClientModInitializer {
         cache = new PlayerCosmeticCache(provider);
         localEquip = new LocalCosmetics(provider, true);
         presence = new PresenceTracker(provider);
+        restoreLocalLook();
         COSMETIC_PREVIEW_RENDER.remove();
         emoteKeyWasDown = false;
         cache.get(client.method_1548().method_44717(), client.method_1548().method_1676());
@@ -164,13 +165,7 @@ implements ClientModInitializer {
         cache = new PlayerCosmeticCache(provider);
         localEquip = new LocalCosmetics(provider, true);
         presence = new PresenceTracker(provider);
-        Thread restore=new Thread(()->{
-            provider.catalog();
-            class_310 client=class_310.method_1551();
-            PlayerCosmetics look=provider.fetch(client.method_1548().method_44717(),client.method_1548().method_1676());
-            client.method_18859(()->localEquip.syncFromBackend(look));
-        },"Kush-Catalog-Restore");
-        restore.setDaemon(true);restore.start();
+        restoreLocalLook();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if(client.field_1687!=null || client.field_1755 instanceof net.fastclient.client.gui.CosmeticsScreen)
                 net.fastclient.client.render.CosmeticTextures.tick();
@@ -183,6 +178,19 @@ implements ClientModInitializer {
             }
         });
         LOGGER.info("Kush cosmetics enabled for 1.21.11; public catalog {}", (Object)backendUrl);
+    }
+
+    private static void restoreLocalLook() {
+        CosmeticProvider ownProvider=provider;LocalCosmetics ownEquip=localEquip;
+        class_310 minecraft=class_310.method_1551();UUID owner=minecraft.method_1548().method_44717();
+        Thread restore=new Thread(()->{
+            ownProvider.catalog();
+            PlayerCosmetics look=ownProvider.fetch(owner,minecraft.method_1548().method_1676());
+            minecraft.method_18859(()->{
+                if(provider==ownProvider && localEquip==ownEquip && owner.equals(minecraft.method_1548().method_44717()))
+                    ownEquip.syncFromBackend(look);
+            });
+        },"Kush-Catalog-Restore");restore.setDaemon(true);restore.start();
     }
 
     static {
