@@ -5,7 +5,7 @@ base=Path('kush-theme/base.jar')
 patch=next(p for p in Path('base/build/libs').glob('*.jar') if 'sources' not in p.name)
 out=Path('dist/KushMod-1.21.11-v0.3.6.jar');out.parent.mkdir(exist_ok=True)
 with zipfile.ZipFile(patch) as pz:
-    changes={n:pz.read(n) for n in pz.namelist() if n.startswith(('net/fastclient/hud/gui/','net/fastclient/hud/launcher/','net/fastclient/client/gui/CosmeticsScreen','net/fastclient/client/FastClientCoreClient','net/fastclient/core/equip/Kush','net/fastclient/core/equip/CosmeticsAvailability','net/fastclient/hud/modules/impl/player/CosmeticsModule')) and n.endswith('.class')}
+    changes={n:pz.read(n) for n in pz.namelist() if n.startswith(('net/fastclient/hud/gui/','net/fastclient/hud/launcher/','net/fastclient/client/gui/CosmeticsScreen','net/fastclient/client/FastClientCoreClient','net/fastclient/client/render/CosmeticTextures','net/fastclient/core/equip/Kush','net/fastclient/core/equip/CosmeticsAvailability','net/fastclient/hud/modules/impl/player/CosmeticsModule')) and n.endswith('.class')}
     for n in ['net/fastclient/hud/mixin/client/TitleScreenMixin.class','net/fastclient/hud/mixin/client/PauseScreenMixin.class']:
         changes[n]=pz.read(n)
     changes.update({n:pz.read(n) for n in pz.namelist() if n.startswith(('assets/fastclient-hud/textures/gui/kush/','assets/fastclient-hud/lang/kush_'))})

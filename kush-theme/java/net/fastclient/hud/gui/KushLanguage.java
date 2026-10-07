@@ -58,7 +58,7 @@ public final class KushLanguage {
         String exact=portuguese?PT.get(text):EN.get(text);
         if(exact!=null)return exact;
         // Counts retain their numerical value and spacing.
-        if(portuguese && text.matches("[0-9]+ layouts"))return text.replace(" layouts"," layouts");
+        if(portuguese && text.matches("[0-9]+ layouts"))return text.replace(" layouts"," opções");
         if(text.endsWith(" Settings"))return portuguese?translate(text.substring(0,text.length()-9))+" · Opções":text;
         return text;
     }

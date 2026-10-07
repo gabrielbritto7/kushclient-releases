@@ -172,6 +172,8 @@ implements ClientModInitializer {
         },"Kush-Catalog-Restore");
         restore.setDaemon(true);restore.start();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if(client.field_1687!=null || client.field_1755 instanceof net.fastclient.client.gui.CosmeticsScreen)
+                net.fastclient.client.render.CosmeticTextures.tick();
             cache.setWatching(client.field_1687 != null && client.method_1569());
             if (client.field_1724 == null) {
                 presence.tick(null, null, false, null);

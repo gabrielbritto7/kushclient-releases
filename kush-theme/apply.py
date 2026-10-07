@@ -350,13 +350,13 @@ p=JAVA/'gui/widgets/ModuleCard.java';s=p.read_text();s=s.replace('String lowerDi
 for name in ['TitleScreenMixin','PauseScreenMixin']:
     p=JAVA/'mixin/client'/f'{name}.java';s=p.read_text().replace('        switch (clicked) {','''        switch (clicked) {
             case "kush_language": {
-                net.fastclient.hud.gui.KushLanguage.toggle();LANGUAGE_RETURN;
+                net.fastclient.hud.gui.KushLanguage.toggle();LANGUAGE_RETURN
             }''',1).replace("LANGUAGE_RETURN", "cir.setReturnValue(true);return;" if name=="TitleScreenMixin" else "return true;");p.write_text(s)
 p=JAVA/'gui/screens/HudOverlayScreen.java';s=p.read_text()
 s=s.replace('        if (this.dragging == null) {\n', '        if (this.dragging == null) {\n',1)
 # Toolbar at top left is separate from draggable modules and the central editor controls.
-needle='        DisplaySpace.push(graphics);'
-s=s.replace(needle,needle+'\n        net.fastclient.hud.gui.KushLanguage.drawButton(graphics,this.field_22793,18,18,48,36,pxMouseX,pxMouseY);',1)
+needle='        float animProgress = this.openAnimation.getValue();'
+s=s.replace(needle,'        net.fastclient.hud.gui.KushLanguage.drawButton(graphics,this.field_22793,18,18,48,36,pxMouseX,pxMouseY);\n'+needle,1)
 a=s.index('    public boolean method_25402(');head,click=s[:a],s[a:]
 click=click.replace('        int button = event.method_74245();','''        int button = event.method_74245();
         if(button==0 && net.fastclient.hud.gui.KushLanguage.hit(18,18,48,36,mouseX,mouseY)) {

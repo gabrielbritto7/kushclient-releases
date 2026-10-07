@@ -68,11 +68,11 @@ public final class KushCatalogProvider implements CosmeticProvider {
         List<CatalogEntry> next=new ArrayList<>();boolean remoteOk=false;
         try {
             int total=1;
-            for(int page=1;page<=Math.min(25,(total+23)/24);page++) {
-                byte[] bytes=get(SITE+"/api/kush?kind=cape&size=24&page="+page,1024*1024);
+            for(int page=1;page<=Math.min(25,(total+7)/8);page++) {
+                byte[] bytes=get(SITE+"/api/kush?kind=cape&size=8&page="+page,1024*1024);
                 JsonObject obj=JsonParser.parseString(new String(bytes,StandardCharsets.UTF_8)).getAsJsonObject();
                 if(obj.get("schema").getAsInt()!=1 || !"cape".equals(obj.get("kind").getAsString()))throw new IOException("Unexpected catalog schema");
-                total=Math.min(600,obj.get("total").getAsInt());
+                total=Math.min(200,obj.get("total").getAsInt());
                 for(JsonElement element:obj.getAsJsonArray("items")) {
                     JsonObject item=element.getAsJsonObject();String id=UUID.fromString(item.get("id").getAsString()).toString();
                     String digest=item.get("sha256").getAsString();if(!digest.matches("[a-f0-9]{64}"))continue;
@@ -154,7 +154,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
             if(ref.startsWith("https://")) {
                 String expected=hashes.get(ref);if(expected==null)throw new IOException("Unlisted remote asset");
                 Path disk=root.resolve("cache/"+expected+".png");
-                bytes=Files.exists(disk)?Files.readAllBytes(disk):null;
+                bytes=Files.exists(disk) && Files.size(disk)<=2*1024*1024?Files.readAllBytes(disk):null;
                 if(bytes==null || !HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected)) {
                     bytes=get(ref,2*1024*1024);
                     if(!HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected))throw new IOException("Texture hash mismatch");
