@@ -29,6 +29,9 @@ public final class KushAssets {
     private static final Map<class_2960, BufferedImage> SOURCES = new HashMap<>();
     private static final Map<String, class_2960> SCALED = new LinkedHashMap<>(32, .75f, true);
     private static final int CACHE_LIMIT = 64;
+    private static final long CACHE_PIXEL_LIMIT = 16_000_000;
+    private static final Map<String, Long> PIXELS = new HashMap<>();
+    private static long cachedPixels;
     private static int textureSerial;
     private KushAssets() {}
     private static class_2960 texture(String file) {
@@ -89,7 +92,11 @@ public final class KushAssets {
         String key = "symbol/" + name + "@" + pw + "x" + ph;
         class_2960 id = SCALED.get(key);
         if (id == null) {
-            BufferedImage icon = KushImageResampler.icon(name, pw, ph);
+            BufferedImage raw = KushImageResampler.icon(name, pw, ph);
+            BufferedImage trimmed = KushImageResampler.trimAlpha(raw);
+            BufferedImage icon = KushImageResampler.resize(trimmed, pw, ph);
+            if (trimmed != raw) trimmed.flush();
+            raw.flush();
             id = register(key, icon);
             icon.flush();
         }
@@ -130,9 +137,14 @@ public final class KushAssets {
         class_2960 id = texture("filtered_" + textureSerial++);
         class_310.method_1551().method_1531().method_4616(id, new class_1043(() -> "Kush UI " + key, image));
         SCALED.put(key, id);
-        if (SCALED.size() > CACHE_LIMIT) {
+        long pixels = (long)source.getWidth()*source.getHeight();
+        PIXELS.put(key,pixels);
+        cachedPixels += pixels;
+        while (SCALED.size() > CACHE_LIMIT || (cachedPixels > CACHE_PIXEL_LIMIT && SCALED.size()>1)) {
             String oldest = SCALED.keySet().iterator().next();
             class_2960 previous = SCALED.remove(oldest);
+            cachedPixels -= PIXELS.getOrDefault(oldest,0L);
+            PIXELS.remove(oldest);
             if (previous.method_12832().contains("filtered_")) class_310.method_1551().method_1531().method_4615(previous);
         }
         return id;
@@ -153,3 +165,4 @@ public final class KushAssets {
         FastClientUI.outline(g, x, y, w, h, FastClientUI.fade(0x806C303C, alpha));
     }
 }
+

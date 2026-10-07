@@ -90,10 +90,10 @@ public final class LauncherRenderer {
         REGIONS.put(id,new int[]{x,y,w,h});boolean hovered=hit(x,y,w,h,mx,my);
         surface(g,id,x,y,w,h,hovered,false);
         class_2561 c=class_2561.method_43470(label);
-        int tw=font.method_27525((class_5348)c)*2, iw=18, gap=10, contentX=x+(w-tw-iw-gap)/2;
-        int inkTop=y+h/2-9;
-        if(icon.equals("kush"))KushAssets.pixelLabelK(g,contentX-3,inkTop,18,hovered);
-        else KushAssets.symbol(g,icon,contentX,inkTop,iw,hovered?0xFFFFDFE1:0xFFBEB8BE);
+        int tw=font.method_27525((class_5348)c)*2, iw=14, gap=8, contentX=x+(w-tw-iw-gap)/2;
+        int inkTop=y+h/2-7;
+        if(icon.equals("kush"))KushAssets.pixelLabelK(g,contentX,inkTop,iw,hovered);
+        else KushAssets.symbol(g,icon,contentX,inkTop,iw,TEXT);
         text(g,font,c,contentX+iw+gap+tw/2,y+h/2,2f,TEXT);
     }
     private static void button(class_332 g,class_327 font,String id,String label,int x,int y,int w,int h,int mx,int my,boolean accent) {
@@ -120,6 +120,9 @@ public final class LauncherRenderer {
         }
         g.method_25294(x,y+2,x+w,y+h+2,0x28000000);
         FastClientUI.borderedRoundedRect(g,x,y,w,h,0,fill,border);
+        if(progress>.01f)g.method_25296(x+1,y+1,x+w-1,y+h-1,
+            FastClientUI.withAlpha(0xFFE53542,Math.round(progress*8)),
+            FastClientUI.withAlpha(0xFFE53542,Math.round(progress*32)));
         if(progress>.01f)g.method_25294(x+1,y+h-2,x+w-1,y+h-1,line);
     }
     private static void tooltip(class_332 g,class_327 font,String label,int cx,int y){
@@ -138,3 +141,4 @@ public final class LauncherRenderer {
     }
     private static boolean hit(int x,int y,int w,int h,int mx,int my){return mx>=x&&mx<x+w&&my>=y&&my<y+h;}
 }
+

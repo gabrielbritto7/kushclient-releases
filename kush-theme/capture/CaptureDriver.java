@@ -33,7 +33,7 @@ public final class CaptureDriver implements ClientModInitializer {
     public void onInitializeClient() {
         String loaded = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("fastclient-hud")
             .orElseThrow().getMetadata().getVersion().getFriendlyString();
-        if (!loaded.equals("1.0.72+kush.0.3.4")) throw new IllegalStateException("Wrong test JAR: " + loaded);
+        if (!loaded.equals("1.0.72+kush.0.3.5")) throw new IllegalStateException("Wrong test JAR: " + loaded);
         System.out.println("[KushCapture] loaded KushMod=" + loaded);
         ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
         System.out.println("[KushCapture] initialized");
@@ -57,7 +57,7 @@ public final class CaptureDriver implements ClientModInitializer {
                 case CAPTURE_MAIN -> capture(client, "01-main-menu", State.SET_TOOL_HOVER);
                 case SET_MAIN_HOVER -> { cursor(client,640,327);waitTicks=35;state=State.CAPTURE_MAIN_HOVER; }
                 case CAPTURE_MAIN_HOVER -> capture(client,"16-main-menu-hover",State.SET_TOOL_HOVER);
-                case SET_TOOL_HOVER -> { cursor(client,1110,42);waitTicks=35;state=State.CAPTURE_TOOL_HOVER; }
+                case SET_TOOL_HOVER -> { cursor(client,1046,42);waitTicks=35;state=State.CAPTURE_TOOL_HOVER; }
                 case CAPTURE_TOOL_HOVER -> capture(client,"17-toolbar-hover",State.OPEN_MODS);
                 case OPEN_MODS -> { cursor(client,20,680);open(client, "net.fastclient.hud.gui.screens.ClickGUIScreen"); waitTicks=60; state=State.CAPTURE_ALL; }
                 case CAPTURE_ALL -> { category(client, null); capture(client, "02-kush-mods-all", State.SET_HUD); }
@@ -125,7 +125,7 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case OPEN_WORLD_OVERLAY -> {open(client,"net.fastclient.hud.gui.screens.HudOverlayScreen");waitTicks=50;state=State.CAPTURE_WORLD_OVERLAY;}
                 case CAPTURE_WORLD_OVERLAY -> capture(client,"13-right-shift-in-game",State.OPEN_WORLD_CONFIG);
-                case OPEN_WORLD_CONFIG -> {openConfig(client);waitTicks=50;state=State.CAPTURE_WORLD_CONFIG;}
+                case OPEN_WORLD_CONFIG -> {openKeystrokesConfig(client);waitTicks=50;state=State.CAPTURE_WORLD_CONFIG;}
                 case CAPTURE_WORLD_CONFIG -> capture(client,"14-glass-in-game",State.OPEN_PAUSE);
                 case OPEN_PAUSE -> {client.setScreen(new net.minecraft.client.gui.screens.PauseScreen(true));waitTicks=50;state=State.CAPTURE_PAUSE;}
                 case CAPTURE_PAUSE -> capture(client,"15-pause-menu",State.DONE);
@@ -175,6 +175,15 @@ public final class CaptureDriver implements ClientModInitializer {
         for(Object mod:(java.util.List<?>)m.getClass().getMethod("getModules").invoke(m))
             if(mod.getClass().getMethod("getName").invoke(mod).toString().equalsIgnoreCase("FPS"))return mod;
         throw new IllegalStateException("FPS module missing");
+    }
+    private static void openKeystrokesConfig(Minecraft client) throws Exception {
+        Object mod=null;
+        for(Object candidate:(java.util.List<?>)manager().getClass().getMethod("getModules").invoke(manager()))
+            if(candidate.getClass().getMethod("getName").invoke(candidate).toString().equalsIgnoreCase("Keystrokes")) mod=candidate;
+        if(mod==null) throw new IllegalStateException("Keystrokes module missing");
+        Class<?> moduleClass=Class.forName("net.fastclient.hud.modules.Module");
+        Class<?> screen=Class.forName("net.fastclient.hud.gui.screens.ModuleConfigScreen");
+        client.setScreen((Screen)screen.getConstructor(moduleClass,Class.forName("net.minecraft.client.gui.screens.Screen")).newInstance(mod,client.screen));
     }
     private static void openConfig(Minecraft client) throws Exception {
         Object mod=fpsModule();Class<?> c=Class.forName("net.fastclient.hud.gui.screens.ModuleConfigScreen");
@@ -272,3 +281,4 @@ public final class CaptureDriver implements ClientModInitializer {
         }));
     }
 }
+

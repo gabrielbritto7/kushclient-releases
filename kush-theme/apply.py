@@ -93,7 +93,7 @@ p.write_text(s)
 
 p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
 s=s.replace('"FastClientHUD"','"Kush Mods"')
-s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.4  ·  Minecraft 1.21.11"')
+s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.5  ·  Minecraft 1.21.11"')
 s=s.replace('"MOD MENU"','"KUSH MODS"')
 s=s.replace('"All" : categories', '"Todos" : categories')
 s=s.replace('"Search"','"Buscar"')
@@ -237,7 +237,7 @@ s=s.replace('this.drawScaledText(graphics, FastClientFonts.filledMaterialSymbol(
     'net.fastclient.hud.gui.KushAssets.symbol(graphics, "gear", leftX+3, chipY+3, chipSize-6, FastClientUI.fade(settingsHovered ? -723724 : -7303024, 235));')
 p.write_text(s)
 
-props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.4').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
+props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.5').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
 props.write_text(s)
 print('Theme applied')
 
@@ -271,3 +271,17 @@ assert count == 1, 'Module header patch must replace exactly one shared renderer
 assert 'String status = this.module.isEnabled() ? "ATIVO" : "INATIVO";' in s
 p.write_text(s)
 print('Single-line module header applied to all modules')
+
+
+# Remove the three requested navigation shortcuts, including their hit areas.
+p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
+s=re.sub(r'HEADER_NAV_SYMBOLS = new String\[\]\{[^;]+;', 'HEADER_NAV_SYMBOLS = new String[0];', s)
+p.write_text(s)
+
+# Redraw only the selected enabled HUD after the native background blur.
+# No other world module is redrawn; settings never change enabled state.
+p=JAVA/'gui/screens/ModuleConfigScreen.java';s=p.read_text()
+needle='        net.fastclient.hud.gui.KushAssets.backdrop(graphics, DisplaySpace.width(), DisplaySpace.height());'
+assert s.count(needle)==1
+s=s.replace(needle,needle+"\n        if (this.module.isEnabled() && this.module.isHudVisible() && this.field_22787.field_1687 != null) {\n            this.module.onRender(graphics, delta);\n        }",1)
+p.write_text(s)
