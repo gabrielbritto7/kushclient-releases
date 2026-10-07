@@ -1,0 +1,22 @@
+name: Download Fabric API 1.21.11
+
+on:
+  push:
+    branches:
+      - build/fapi-1.21.11
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Fabric API
+        run: |
+          curl -L --fail --retry 3 \
+            "https://cdn.modrinth.com/data/P7dR8mSH/versions/6qAuTtLR/fabric-api-0.141.6%2B1.21.11.jar" \
+            -o fabric-api-0.141.6+1.21.11.jar
+          sha256sum fabric-api-0.141.6+1.21.11.jar
+      - name: Upload Fabric API
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabric-api-0.141.6-1.21.11
+          path: fabric-api-0.141.6+1.21.11.jar
