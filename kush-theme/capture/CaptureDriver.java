@@ -23,7 +23,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, VERIFY_PERSISTENCE, DONE
     }
     private static State state = State.WAIT_TITLE;
     private static int waitTicks;
@@ -33,7 +33,7 @@ public final class CaptureDriver implements ClientModInitializer {
     public void onInitializeClient() {
         String loaded = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("fastclient-hud")
             .orElseThrow().getMetadata().getVersion().getFriendlyString();
-        if (!loaded.equals("1.0.72+kush.0.3.5")) throw new IllegalStateException("Wrong test JAR: " + loaded);
+        if (!loaded.equals("1.0.72+kush.0.3.6")) throw new IllegalStateException("Wrong test JAR: " + loaded);
         System.out.println("[KushCapture] loaded KushMod=" + loaded);
         ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
         System.out.println("[KushCapture] initialized");
@@ -128,12 +128,75 @@ public final class CaptureDriver implements ClientModInitializer {
                 case OPEN_WORLD_CONFIG -> {openKeystrokesConfig(client);waitTicks=50;state=State.CAPTURE_WORLD_CONFIG;}
                 case CAPTURE_WORLD_CONFIG -> capture(client,"14-glass-in-game",State.OPEN_PAUSE);
                 case OPEN_PAUSE -> {client.setScreen(new net.minecraft.client.gui.screens.PauseScreen(true));waitTicks=50;state=State.CAPTURE_PAUSE;}
-                case CAPTURE_PAUSE -> capture(client,"15-pause-menu",State.DONE);
+                case CAPTURE_PAUSE -> capture(client,"15-pause-menu",State.OPEN_RESET);
+                case OPEN_RESET -> {open(client,"net.fastclient.hud.gui.screens.ClickGUIScreen");dialog(client,"RESET");waitTicks=50;state=State.CAPTURE_RESET;}
+                case CAPTURE_RESET -> capture(client,"21-reset-pt",State.OPEN_PRESETS);
+                case OPEN_PRESETS -> {dialog(client,"PRESETS");waitTicks=30;state=State.CAPTURE_PRESETS;}
+                case CAPTURE_PRESETS -> capture(client,"22-presets-pt",State.SET_EN);
+                case SET_EN -> {language(false);waitTicks=30;state=State.CAPTURE_PRESETS_EN;}
+                case CAPTURE_PRESETS_EN -> capture(client,"23-presets-en",State.OPEN_CONFIG_EN);
+                case OPEN_CONFIG_EN -> {openConfig(client);waitTicks=40;state=State.CAPTURE_CONFIG_EN;}
+                case CAPTURE_CONFIG_EN -> capture(client,"24-module-en",State.OPEN_COSMETICS);
+                case OPEN_COSMETICS -> {language(true);open(client,"net.fastclient.client.gui.CosmeticsScreen");stableTicks=0;state=State.WAIT_CATALOG;}
+                case WAIT_CATALOG -> {
+                    if(!catalog().isEmpty()){waitTicks=80;state=State.CAPTURE_COSMETICS;}
+                    else if(stableTicks++>600)throw new IllegalStateException("Kush site catalog never loaded");
+                }
+                case CAPTURE_COSMETICS -> capture(client,"25-kush-catalog",State.TRY_CAPE);
+                case TRY_CAPE -> {Object entry=catalog().get(0);local().getClass().getMethod("togglePreview",entry.getClass()).invoke(local(),entry);
+                    Field yaw=client.screen.getClass().getDeclaredField("previewYaw");yaw.setAccessible(true);yaw.setFloat(client.screen,140f);
+                    stableTicks=0;state=State.WAIT_CAPE;}
+                case WAIT_CAPE -> {
+                    if(cape("forPreview")!=null){System.out.println("[KushCapture] real catalog cape decoded for native preview");waitTicks=60;state=State.CAPTURE_CAPE;}
+                    else if(stableTicks++>600)throw new IllegalStateException("Catalog cape preview did not resolve");
+                }
+                case CAPTURE_CAPE -> capture(client,"26-cape-preview",State.EQUIP_CAPE);
+                case EQUIP_CAPE -> {Object entry=catalog().get(0);local().getClass().getMethod("toggle",entry.getClass()).invoke(local(),entry);
+                    Field mode=client.screen.getClass().getDeclaredField("mode");mode.setAccessible(true);
+                    mode.set(client.screen,Enum.valueOf((Class)mode.getType(),"WARDROBE"));stableTicks=0;state=State.WAIT_EQUIP;}
+                case WAIT_EQUIP -> {
+                    if(cape("forRender")!=null){System.out.println("[KushCapture] real cape equipped locally");waitTicks=80;state=State.CAPTURE_EQUIP;}
+                    else if(stableTicks++>600)throw new IllegalStateException("Equipped cape did not resolve");
+                }
+                case CAPTURE_EQUIP -> capture(client,"27-cape-equipped",State.VERIFY_PERSISTENCE);
+                case VERIFY_PERSISTENCE -> {
+                    Path dir=client.gameDirectory.toPath().resolve("config/kushmod/cosmetics");
+                    try(var files=Files.list(dir)) {
+                        Path loadout=files.filter(p->p.getFileName().toString().startsWith("loadout-")).findFirst().orElseThrow();
+                        if(!Files.readString(loadout).contains("kush-site-"))throw new IllegalStateException("Cape selection was not persisted");
+                    }
+                    client.setScreen(null);
+                    if(cape("forPreview")!=null)throw new IllegalStateException("Preview leaked after screen close");
+                    if(cape("forRender")==null)throw new IllegalStateException("Equipped cape lost on screen close");
+                    String saved=Files.readString(client.gameDirectory.toPath().resolve("config/kushmod/language.txt"));
+                    if(!saved.equals("pt_br"))throw new IllegalStateException("Language preference not persisted");
+                    System.out.println("[KushCapture] verified loadout persistence, preview cleanup and PT/EN preference");state=State.DONE;
+                }
                 case DONE -> { System.out.println("[KushCapture] complete"); Thread.sleep(500); System.exit(0); }
             }
         } catch (Throwable t) { t.printStackTrace(); System.err.println("[KushCapture] failed state="+state); System.exit(2); }
     }
 
+
+    private static void language(boolean portuguese)throws Exception {
+        Class<?> c=Class.forName("net.fastclient.hud.gui.KushLanguage");
+        if((boolean)c.getMethod("isPortuguese").invoke(null)!=portuguese)
+            if(!(boolean)c.getMethod("toggle").invoke(null))throw new IllegalStateException("Language save failed");
+        String expected=portuguese?"Ativo":"Enabled";
+        if(!c.getMethod("translate",String.class).invoke(null,"Enabled").equals(expected))throw new IllegalStateException("Language translation failed");
+    }
+    private static void dialog(Minecraft client,String name)throws Exception {
+        Field f=client.screen.getClass().getDeclaredField("actionDialog");f.setAccessible(true);
+        f.set(client.screen,Enum.valueOf((Class)f.getType(),name));
+    }
+    private static Object local()throws Exception {return Class.forName("net.fastclient.client.FastClientCoreClient").getMethod("localEquip").invoke(null);}
+    private static Object cape(String method)throws Exception {
+        Object look=local().getClass().getMethod(method).invoke(local());return look.getClass().getMethod("cape").invoke(look);
+    }
+    private static java.util.List<?> catalog()throws Exception {
+        Object cache=Class.forName("net.fastclient.client.FastClientCoreClient").getMethod("cache").invoke(null);
+        return (java.util.List<?>)cache.getClass().getMethod("catalog").invoke(cache);
+    }
 
     private static Object manager() throws Exception {
         Class<?> main=Class.forName("net.fastclient.hud.FastClientHUDClient");

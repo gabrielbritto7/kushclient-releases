@@ -5,6 +5,7 @@ import java.util.Map;
 import net.fastclient.hud.gui.FastClientFonts;
 import net.fastclient.hud.gui.FastClientUI;
 import net.fastclient.hud.gui.KushAssets;
+import net.fastclient.hud.gui.KushLanguage;
 import net.minecraft.class_2561;
 import net.minecraft.class_2960;
 import net.minecraft.class_310;
@@ -48,7 +49,8 @@ public final class LauncherRenderer {
         renderSkinToggle(g,font,w,h,mx,my);int x=toggleBounds(w)[0]-10-48;
         icon(g,font,"box","\ue2c8","Resource packs",null,x,18,48,mx,my);x-=58;
         icon(g,font,"settings","\ue8b8","Configurações do Minecraft",null,x,18,48,mx,my);x-=58;
-        icon(g,font,"window",null,"Kush Mods",KushAssets.PIXEL_RED_K,x,18,48,mx,my);
+        icon(g,font,"window",null,"Kush Mods",KushAssets.PIXEL_RED_K,x,18,48,mx,my);x-=58;
+        REGIONS.put("kush_language",new int[]{x,18,48,48});KushLanguage.drawButton(g,font,x,18,48,48,mx,my);
     }
     public static void renderSkinToggle(class_332 g,class_327 font,int w,int h,int mx,int my) {
         int[] r=toggleBounds(w);int x=r[0],y=r[1];
@@ -83,10 +85,11 @@ public final class LauncherRenderer {
         }
         String[][] bottom={{"pause_minecraftfolder","Pasta do jogo","folder"},{"pause_statistics","Estatísticas","chart"},{"pause_advancements","Avanços","award"}};
         int bx=w-32;
-        for(var b:bottom){int smallW=font.method_1727(b[1])*2+46;bx-=smallW;
+        for(var b:bottom){int smallW=font.method_1727(KushLanguage.translate(b[1]))*2+46;bx-=smallW;
             pauseButton(g,font,b[0],b[1],b[2],bx,h-70,smallW,38,mx,my);bx-=10;}
     }
     private static void pauseButton(class_332 g,class_327 font,String id,String label,String icon,int x,int y,int w,int h,int mx,int my) {
+        label=KushLanguage.translate(label);
         REGIONS.put(id,new int[]{x,y,w,h});boolean hovered=hit(x,y,w,h,mx,my);
         surface(g,id,x,y,w,h,hovered,false);
         class_2561 c=class_2561.method_43470(label);
@@ -97,7 +100,7 @@ public final class LauncherRenderer {
         text(g,font,c,contentX+iw+gap+tw/2,y+h/2,2f,TEXT);
     }
     private static void button(class_332 g,class_327 font,String id,String label,int x,int y,int w,int h,int mx,int my,boolean accent) {
-        REGIONS.put(id,new int[]{x,y,w,h});surface(g,id,x,y,w,h,hit(x,y,w,h,mx,my),accent);
+        label=KushLanguage.translate(label);REGIONS.put(id,new int[]{x,y,w,h});surface(g,id,x,y,w,h,hit(x,y,w,h,mx,my),accent);
         text(g,font,class_2561.method_43470(label),x+w/2,y+h/2,w<160?1f:2f,TEXT);
     }
     private static void icon(class_332 g,class_327 font,String id,String glyph,String label,class_2960 texture,int x,int y,int s,int mx,int my){
@@ -115,18 +118,18 @@ public final class LauncherRenderer {
         int border=FastClientUI.blend(accent?0xFF841B24:0xFF110F12,0xFFA52A37,progress);
         int line=FastClientUI.withAlpha(0xFFE53542,Math.round(progress*220));
         if(id.equals("toggle")){
-            fill=saturate(fill,uiColor);fill=FastClientUI.blend(fill|0xFF000000,fill,uiColor);
+            fill=0xFF000000;
             border=saturate(border,uiColor);line=saturate(line,uiColor);
         }
         g.method_25294(x,y+2,x+w,y+h+2,0x28000000);
         FastClientUI.borderedRoundedRect(g,x,y,w,h,0,fill,border);
-        if(progress>.01f)g.method_25296(x+1,y+1,x+w-1,y+h-1,
+        if(progress>.01f && !id.equals("toggle"))g.method_25296(x+1,y+1,x+w-1,y+h-1,
             FastClientUI.withAlpha(0xFFE53542,Math.round(progress*8)),
             FastClientUI.withAlpha(0xFFE53542,Math.round(progress*32)));
         if(progress>.01f)g.method_25294(x+1,y+h-2,x+w-1,y+h-1,line);
     }
     private static void tooltip(class_332 g,class_327 font,String label,int cx,int y){
-        class_2561 c=class_2561.method_43470(label);float scale=1f;int w=Math.round(font.method_27525((class_5348)c)*scale)+20;
+        class_2561 c=class_2561.method_43470(KushLanguage.translate(label));float scale=1f;int w=Math.round(font.method_27525((class_5348)c)*scale)+20;
         int x=Math.max(4,Math.min(cx-w/2,net.fastclient.hud.gui.DisplaySpace.width()-w-4));
         FastClientUI.borderedRoundedRect(g,x,y,w,26,0,0xE8181118,0xFF110E12);text(g,font,c,x+w/2,y+13,scale,TEXT);
     }

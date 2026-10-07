@@ -93,7 +93,7 @@ p.write_text(s)
 
 p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
 s=s.replace('"FastClientHUD"','"Kush Mods"')
-s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.5  ·  Minecraft 1.21.11"')
+s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.6  ·  Minecraft 1.21.11"')
 s=s.replace('"MOD MENU"','"KUSH MODS"')
 s=s.replace('"All" : categories', '"Todos" : categories')
 s=s.replace('"Search"','"Buscar"')
@@ -237,7 +237,7 @@ s=s.replace('this.drawScaledText(graphics, FastClientFonts.filledMaterialSymbol(
     'net.fastclient.hud.gui.KushAssets.symbol(graphics, "gear", leftX+3, chipY+3, chipSize-6, FastClientUI.fade(settingsHovered ? -723724 : -7303024, 235));')
 p.write_text(s)
 
-props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.5').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
+props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.6').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
 props.write_text(s)
 print('Theme applied')
 
@@ -307,3 +307,60 @@ s=s.replace(needle,needle+'''
             }
         }''',1)
 p.write_text(s)
+
+# Kush 0.3.6: language, readable modal dialogs and restored cosmetics.
+lang=ASSETS/'lang/kush_pt_br.json';lang.parent.mkdir(parents=True,exist_ok=True)
+shutil.copyfile(ROOT/'language/pt_br.json',lang)
+gradle=PROJECT/'build.gradle';s=gradle.read_text();s=s.replace('dependencies {','dependencies {\n    compileOnly files("../kush-theme/base.jar")',1);gradle.write_text(s)
+# All display text shares the same translator; underlying IDs are unchanged.
+p=JAVA/'gui/FastClientFonts.java';s=p.read_text().replace('        class_2583 style;','        text=KushLanguage.translate(text);\n        class_2583 style;',1);p.write_text(s)
+p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
+a=s.index('    private void drawActionDialog(');b=s.index('    private int presetAccent(',a)
+modal=s[a:b].replace('FastClientUI.fade(0xA6141115, alpha)','0xFF141115').replace('FastClientUI.fade(-16777216, 100)','0xB0000000')
+s=s[:a]+modal+s[b:]
+# Translation must happen before truncation, not after an English string has lost its lookup key.
+s=s.replace('    private String fitText(String text, int maxWidth) {','    private String fitText(String text, int maxWidth) {\n        text=net.fastclient.hud.gui.KushLanguage.translate(text);')
+s=s.replace('        int closeSize = 48;\n        int closeX = this.panelX + this.panelWidth - closeSize;', '''        int lx=this.panelX+this.panelWidth-112;
+        net.fastclient.hud.gui.KushLanguage.drawButton(graphics,this.field_22793,lx,y+2,48,48,mouseX,mouseY);
+        int cosmeticsX=lx-60;
+        this.drawNavIcon(graphics,cosmeticsX,y+2,48,48,"\\uf19e",alpha,mouseX,mouseY);
+        int closeSize = 48;
+        int closeX = this.panelX + this.panelWidth - closeSize;''',1)
+# This handler is before search/category hit areas, and modal overlays own all input.
+s=s.replace('        int closeSize = 48;\n        int closeX = this.panelX + this.panelWidth - closeSize;', '''        if(button==0 && net.fastclient.hud.gui.KushLanguage.hit(this.panelX+this.panelWidth-112,this.getHeaderNavY()+2,48,48,mouseX,mouseY)) {
+            net.fastclient.hud.gui.KushLanguage.toggle();this.method_25426();return true;
+        }
+        if(button==0 && net.fastclient.hud.gui.KushLanguage.hit(this.panelX+this.panelWidth-172,this.getHeaderNavY()+2,48,48,mouseX,mouseY)) {
+            this.field_22787.method_1507(new net.fastclient.client.gui.CosmeticsScreen());return true;
+        }
+        int closeSize = 48;
+        int closeX = this.panelX + this.panelWidth - closeSize;''',1 if False else 0) if False else s
+# Target only click method (drawHeader has the same closeSize declaration).
+a=s.index('    public boolean method_25402(')
+head,click=s[:a],s[a:]
+click=click.replace('        int closeSize = 48;', '''        if(button==0 && net.fastclient.hud.gui.KushLanguage.hit(this.panelX+this.panelWidth-112,this.getHeaderNavY()+2,48,48,mouseX,mouseY)) {
+            net.fastclient.hud.gui.KushLanguage.toggle();this.method_25426();return true;
+        }
+        if(button==0 && net.fastclient.hud.gui.KushLanguage.hit(this.panelX+this.panelWidth-172,this.getHeaderNavY()+2,48,48,mouseX,mouseY)) {
+            this.field_22787.method_1507(new net.fastclient.client.gui.CosmeticsScreen());return true;
+        }
+        int closeSize = 48;''',1)
+s=head+click;p.write_text(s)
+p=JAVA/'gui/widgets/ModuleCard.java';s=p.read_text();s=s.replace('String lowerDisplayName = this.module.getDisplayName().toLowerCase(Locale.ROOT);','String lowerDisplayName = net.fastclient.hud.gui.KushLanguage.translate(this.module.getDisplayName()).toLowerCase(Locale.ROOT);');p.write_text(s)
+for name in ['TitleScreenMixin','PauseScreenMixin']:
+    p=JAVA/'mixin/client'/f'{name}.java';s=p.read_text().replace('        switch (clicked) {','''        switch (clicked) {
+            case "kush_language": {
+                net.fastclient.hud.gui.KushLanguage.toggle();LANGUAGE_RETURN;
+            }''',1).replace("LANGUAGE_RETURN", "cir.setReturnValue(true);return;" if name=="TitleScreenMixin" else "return true;");p.write_text(s)
+p=JAVA/'gui/screens/HudOverlayScreen.java';s=p.read_text()
+s=s.replace('        if (this.dragging == null) {\n', '        if (this.dragging == null) {\n',1)
+# Toolbar at top left is separate from draggable modules and the central editor controls.
+needle='        DisplaySpace.push(graphics);'
+s=s.replace(needle,needle+'\n        net.fastclient.hud.gui.KushLanguage.drawButton(graphics,this.field_22793,18,18,48,36,pxMouseX,pxMouseY);',1)
+a=s.index('    public boolean method_25402(');head,click=s[:a],s[a:]
+click=click.replace('        int button = event.method_74245();','''        int button = event.method_74245();
+        if(button==0 && net.fastclient.hud.gui.KushLanguage.hit(18,18,48,36,mouseX,mouseY)) {
+            net.fastclient.hud.gui.KushLanguage.toggle();this.method_25426();return true;
+        }''',1)
+s=head+click;p.write_text(s)
+print('Kush language, modal panels and cosmetics controls applied')
