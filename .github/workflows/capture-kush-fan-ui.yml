@@ -27,7 +27,7 @@ jobs:
       - name: Install virtual display tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xdotool scrot openbox
+          sudo apt-get install -y xvfb xdotool scrot openbox x11-utils wmctrl
 
       - name: Build FastClient HUD base
         run: |
@@ -124,7 +124,7 @@ jobs:
           fullscreen:false
           guiScale:2
           renderDistance:2
-          simulationDistance:2
+          simulationDistance:5
           maxFps:30
           enableVsync:false
           skipMultiplayerWarning:true
@@ -133,10 +133,24 @@ jobs:
 
       - name: Launch Minecraft and capture real UI
         run: |
+          set -u
           mkdir -p capture-runner/run/screenshots logs
           Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset > logs/xvfb.log 2>&1 &
+          XVFB_PID=$!
           export DISPLAY=:99
-          openbox > logs/openbox.log 2>&1 &
+
+          READY=0
+          for i in $(seq 1 100); do
+            if xdpyinfo -display :99 >/dev/null 2>&1; then READY=1; break; fi
+            sleep 0.2
+          done
+          if [ "$READY" != "1" ]; then
+            echo 'Xvfb did not become ready'
+            cat logs/xvfb.log || true
+            exit 1
+          fi
+
+          openbox --display :99 > logs/openbox.log 2>&1 &
           sleep 2
 
           cd capture-runner
@@ -144,44 +158,63 @@ jobs:
           MC_PID=$!
           cd ..
 
-          WID=''
-          for i in $(seq 1 210); do
-            WID=$(xdotool search --name 'Minecraft' 2>/dev/null | head -1 || true)
-            if [ -n "$WID" ]; then break; fi
+          # Wait for Minecraft to finish loading its GUI atlas instead of depending on a window title.
+          LOADED=0
+          for i in $(seq 1 180); do
+            if grep -q 'minecraft:textures/atlas/gui.png-atlas' logs/minecraft.log 2>/dev/null; then LOADED=1; break; fi
+            if ! kill -0 "$MC_PID" 2>/dev/null; then break; fi
             sleep 1
           done
-          if [ -z "$WID" ]; then
-            echo 'Minecraft window was not found'
+          if [ "$LOADED" != "1" ]; then
+            echo 'Minecraft GUI did not finish loading'
             tail -200 logs/minecraft.log || true
             exit 1
           fi
+          sleep 12
 
-          xdotool windowmove "$WID" 0 0 || true
-          xdotool windowsize "$WID" 1280 720 || true
-          xdotool windowactivate --sync "$WID" || xdotool windowfocus "$WID" || true
-          sleep 35
+          echo '--- visible windows ---' > logs/windows.txt
+          wmctrl -lG >> logs/windows.txt 2>&1 || true
+          xdotool search --onlyvisible --name '.' 2>/dev/null | while read -r w; do
+            echo "WINDOW $w" >> logs/windows.txt
+            xdotool getwindowname "$w" >> logs/windows.txt 2>&1 || true
+            xdotool getwindowgeometry "$w" >> logs/windows.txt 2>&1 || true
+          done
 
+          # Root capture is independent of the Minecraft window title/class.
           scrot -o capture-runner/run/screenshots/01-main-menu.png
 
-          # GUI scale 2: click the Kush Mods button in the top-right chrome.
-          xdotool mousemove --sync 794 72 click 1
+          # Find the largest visible application window and focus it for interaction.
+          BEST=''
+          BEST_AREA=0
+          for w in $(xdotool search --onlyvisible --name '.' 2>/dev/null || true); do
+            eval "$(xdotool getwindowgeometry --shell "$w" 2>/dev/null || true)"
+            AREA=$(( ${WIDTH:-0} * ${HEIGHT:-0} ))
+            if [ "$AREA" -gt "$BEST_AREA" ]; then BEST="$w"; BEST_AREA="$AREA"; fi
+          done
+          echo "best_window=$BEST area=$BEST_AREA" >> logs/windows.txt
+          if [ -n "$BEST" ]; then
+            xdotool windowactivate --sync "$BEST" 2>/dev/null || xdotool windowfocus "$BEST" 2>/dev/null || true
+          fi
+
+          # Current Kush launcher UI: top-right Kush Mods button.
+          xdotool mousemove --sync 805 76 click 1 || true
           sleep 5
           scrot -o capture-runner/run/screenshots/02-kush-mods.png
 
-          xdotool key Escape
+          xdotool key Escape || true
           sleep 3
-          # Toggle to vanilla Minecraft UI through the MC button.
-          xdotool mousemove --sync 1194 72 click 1
+          # MC button toggles back to vanilla UI.
+          xdotool mousemove --sync 1200 76 click 1 || true
           sleep 5
           scrot -o capture-runner/run/screenshots/03-minecraft-ui.png
 
-          # Try Right Shift on the title screen as an additional diagnostic capture.
-          xdotool mousemove --sync 640 360
-          xdotool key Shift_R
+          # Diagnostic Right Shift capture.
+          xdotool key Shift_R || true
           sleep 3
           scrot -o capture-runner/run/screenshots/04-right-shift-diagnostic.png
 
-          kill "$MC_PID" || true
+          kill "$MC_PID" 2>/dev/null || true
+          kill "$XVFB_PID" 2>/dev/null || true
           sleep 2
 
       - name: Upload current JAR
