@@ -1,0 +1,71 @@
+name: KushClient - Windows update builder
+on:
+  push:
+    branches: [build/kush-v033-installer-tool]
+    paths: ['installer-builder/**', '.github/workflows/installer-builder.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare portable compiler
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $nsis="${env:ProgramFiles(x86)}\NSIS"
+          if (!(Test-Path "$nsis\makensis.exe")) {
+            choco install nsis --version=3.11 -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'NSIS installation failed' }
+          }
+          New-Item -ItemType Directory -Force build/Gerador | Out-Null
+          Copy-Item $nsis build/Gerador/NSIS -Recurse
+          Copy-Item installer-builder/setup.nsi,installer-builder/kushclient.ico build/Gerador
+          Copy-Item installer-builder/test-support build/Gerador -Recurse
+          $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /target:winexe /platform:anycpu /codepage:65001 /out:build/Gerador/Gerador-Atualizacoes-KushClient.exe /win32icon:installer-builder/kushclient.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll installer-builder/Gerador.cs installer-builder/SelfTests.cs
+          if ($LASTEXITCODE -ne 0) { throw 'C# compilation failed' }
+      - name: Exercise real packaging
+        shell: pwsh
+        run: |
+          $p=Start-Process build/Gerador/Gerador-Atualizacoes-KushClient.exe -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content build/Gerador/test-output/ERRO.txt -ErrorAction SilentlyContinue
+            throw 'Builder self tests failed'
+          }
+          Get-Content build/Gerador/test-output/VALIDACAO.json
+          & 'C:\Program Files\7-Zip\7z.exe' x build/Gerador/test-output/saida/kushclient-v.0.9.17.exe -obuild/extracted -y
+          if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
+          python installer-builder/validate_payload.py build/extracted build/Gerador/VALIDACAO-INSTALADOR.json
+          if ($LASTEXITCODE -ne 0) { throw 'Installer integrity tests failed' }
+          Copy-Item build/Gerador/test-output/VALIDACAO.json build/Gerador/VALIDACAO-GERADOR.json
+      - name: UI preview and package
+        shell: pwsh
+        run: |
+          $p=Start-Process build/Gerador/Gerador-Atualizacoes-KushClient.exe -ArgumentList '--preview',"$pwd\build\Gerador\PREVIA-GERADOR.png" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Preview failed' }
+          Remove-Item build/Gerador/test-output -Recurse -Force
+          New-Item -ItemType Directory -Force build/Gerador/Fontes | Out-Null
+          Copy-Item installer-builder/*.cs build/Gerador/Fontes
+          Copy-Item installer-builder/COMO-USAR.txt build/Gerador
+          Compress-Archive build/Gerador/* build/Gerador-Atualizacoes-KushClient-v1.0.0.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gerador-Atualizacoes-KushClient-v1.0.0
+          path: build/Gerador-Atualizacoes-KushClient-v1.0.0.zip
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Gerador-test-results
+          path: |
+            build/Gerador/*.json
+            build/Gerador/test-output/*.txt
+            build/Gerador/test-output/*.json
+            build/Gerador/PREVIA-GERADOR.png

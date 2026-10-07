@@ -1,0 +1,45 @@
+GERADOR DE ATUALIZAÇÕES KUSHCLIENT v1.0.0 — WINDOWS
+
+1. Extraia TODO o ZIP do gerador para uma pasta.
+2. Abra Gerador-Atualizacoes-KushClient.exe.
+3. Clique em Selecionar e escolha a pasta COMPLETA da nova atualização.
+   É a pasta que contém KushClient.exe, os arquivos .py, assets e runtime.
+   Se você recebeu um ZIP do launcher, extraia-o antes.
+4. A ferramenta identifica a versão automaticamente e confere se os arquivos
+   do launcher e do instalador usam a mesma versão.
+5. Escolha uma pasta de saída fora da pasta da atualização.
+6. Clique em Gerar EXE e aguarde a confirmação.
+7. No seu site: /skins → Atualizações. Informe a versão exibida pelo gerador
+   e envie o kushclient-v.0.x.x.exe gerado. Aguarde a confirmação do painel.
+
+Você não precisa instalar Python, NSIS ou abrir um terminal para gerar o EXE.
+O compilador NSIS acompanha este pacote. Use Windows 10/11 com .NET Framework
+4.8 habilitado. Mantenha a pasta NSIS, setup.nsi e kushclient.ico junto do gerador.
+
+O gerador empacota a pasta preparada do launcher; não cria funcionalidades novas
+nem aumenta sua versão apenas ao renomear um arquivo. Uma atualização nova deve
+vir com a mesma versão em core.py, installer.py e release-config.json.
+O painel exige uma versão mais recente que a última publicada.
+
+A pasta de origem é preservada. O EXE contém os arquivos do programa, o runtime
+Windows, os assets, o instalador habitual, a lista de arquivos e seus SHA-256.
+O arquivo .sha256.txt é uma conferência local; envie somente o EXE ao painel.
+A assinatura do anúncio de atualização continua sendo feita pelo próprio painel.
+O gerador não precisa receber sua chave privada nem suas credenciais.
+
+O JAR do KushMod é uma atualização do MOD, não uma pasta do launcher. Para usar
+o KushMod v0.3.3, substitua o JAR anterior na pasta mods do Fabric 1.21.11.
+Não selecione um JAR ou a pasta mods no gerador de instaladores do launcher.
+
+Antes de publicar uma versão para os usuários, execute o instalador gerado no
+seu Windows e confira a abertura do launcher e a versão em Configurações.
+
+Se der erro:
+- Falta runtime/pythonw.exe: você selecionou uma pasta incompleta ou de fontes.
+- Versões diferentes: os arquivos da atualização não estão preparados com a mesma versão.
+- EXE já existe: escolha outra pasta de saída; o gerador preserva o EXE anterior.
+- Arquivos do gerador ausentes: extraia o ZIP completo, incluindo a pasta NSIS.
+- EXE acima de 200 MB: esse é o limite atual do painel.
+
+NSIS: https://nsis.sourceforge.io/
+As licenças e os arquivos do compilador permanecem na pasta NSIS.
