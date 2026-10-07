@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 
 public final class CaptureDriver implements ClientModInitializer {
     private enum State {
-        WAIT_TITLE, CAPTURE_MAIN, OPEN_MODS, CAPTURE_ALL,
+        WAIT_TITLE, CAPTURE_MAIN, SET_MAIN_HOVER, CAPTURE_MAIN_HOVER, SET_TOOL_HOVER, CAPTURE_TOOL_HOVER, OPEN_MODS, CAPTURE_ALL,
         SET_HUD, CAPTURE_HUD, SET_RENDER, CAPTURE_RENDER,
         SET_MOVEMENT, CAPTURE_MOVEMENT, SET_PLAYER, CAPTURE_PLAYER,
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
@@ -45,7 +45,11 @@ public final class CaptureDriver implements ClientModInitializer {
                         if (++stableTicks >= 80) state = State.CAPTURE_MAIN;
                     } else stableTicks = 0;
                 }
-                case CAPTURE_MAIN -> capture(client, "01-main-menu", State.OPEN_MODS);
+                case CAPTURE_MAIN -> capture(client, "01-main-menu", State.SET_MAIN_HOVER);
+                case SET_MAIN_HOVER -> { cursor(640,327);waitTicks=35;state=State.CAPTURE_MAIN_HOVER; }
+                case CAPTURE_MAIN_HOVER -> capture(client,"16-main-menu-hover",State.SET_TOOL_HOVER);
+                case SET_TOOL_HOVER -> { cursor(1110,42);waitTicks=35;state=State.CAPTURE_TOOL_HOVER; }
+                case CAPTURE_TOOL_HOVER -> { capture(client,"17-toolbar-hover",State.OPEN_MODS);cursor(20,680); }
                 case OPEN_MODS -> { open(client, "net.fastclient.hud.gui.screens.ClickGUIScreen"); waitTicks=60; state=State.CAPTURE_ALL; }
                 case CAPTURE_ALL -> { category(client, null); capture(client, "02-kush-mods-all", State.SET_HUD); }
                 case SET_HUD -> setCat(client,"HUD",State.CAPTURE_HUD);
@@ -111,6 +115,20 @@ public final class CaptureDriver implements ClientModInitializer {
         Class<?> main=Class.forName("net.fastclient.hud.FastClientHUDClient");
         Object instance=main.getDeclaredMethod("getInstance").invoke(null);
         return main.getDeclaredMethod("getModuleManager").invoke(instance);
+    }
+    private static void cursor(double x,double y) {
+        long handle=org.lwjgl.glfw.GLFW.glfwGetCurrentContext();
+        if(handle!=0)org.lwjgl.glfw.GLFW.glfwSetCursorPos(handle,x,y);
+    }
+    private static void verifyTypeface(Minecraft client) throws Exception {
+        String name=client.screen==null?"":client.screen.getClass().getName();
+        boolean settings=name.endsWith("ClickGUIScreen")||name.endsWith("ModuleConfigScreen");
+        Object actual=Class.forName("net.fastclient.hud.gui.FastClientFonts").getDeclaredMethod("activeTypeface").invoke(null);
+        String expected=settings?"INTER":"MINECRAFT_DEFAULT";
+        if(!actual.toString().equals(expected))throw new IllegalStateException("Incorrect typeface for "+name+": "+actual);
+        if(name.endsWith("HudOverlayScreen"))for(Method m:client.screen.getClass().getDeclaredMethods())
+            if(m.getName().equals("isDisableActionHovered"))throw new IllegalStateException("HUD delete action is still present");
+        System.out.println("[KushCapture] verified typeface="+actual+" screen="+name);
     }
     private static Object fpsModule() throws Exception {
         Object m=manager();
@@ -184,6 +202,7 @@ public final class CaptureDriver implements ClientModInitializer {
     }
 
     private static void capture(Minecraft client,String name,State next) throws Exception {
+        verifyTypeface(client);
         capturing=true;
         File root=new File(client.gameDirectory,"kush-capture-temp/"+name);
         Path rootPath=root.toPath();

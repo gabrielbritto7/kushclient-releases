@@ -19,6 +19,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.7.1'
+      - name: Check image reduction and aspect ratios
+        run: |
+          mkdir -p /tmp/kush-image-check
+          javac -d /tmp/kush-image-check kush-theme/java/net/fastclient/hud/gui/KushImageResampler.java kush-theme/tests/ResamplerCheck.java
+          java -Djava.awt.headless=true -cp /tmp/kush-image-check ResamplerCheck
       - name: Build native UI
         run: |
           git clone https://github.com/itz0cat/fastclient-hud.git base
@@ -36,7 +41,7 @@ jobs:
           cp kush-theme/capture/fabric.mod.json capture/src/main/resources/
           cp kush-theme/capture/CaptureDriver.java capture/src/main/java/dev/kush/capture/
           cp kush-theme/capture/options.txt capture/run/
-          cp dist/KushMod-1.21.11-v0.3.0.jar capture/run/mods/
+          cp dist/KushMod-1.21.11-v0.3.1.jar capture/run/mods/
           printf '\nlang:en_us\nmenuBackgroundBlurriness:4\n' >> capture/run/options.txt
       - name: Real Minecraft framebuffer captures
         run: |
@@ -62,7 +67,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-1.21.11-v0.3.0
+          name: KushMod-1.21.11-v0.3.1
           path: dist/*
           if-no-files-found: warn
           retention-days: 90
@@ -70,7 +75,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-v0.3.0-native-screenshots
+          name: KushMod-v0.3.1-native-screenshots
           path: capture/run/kush-captures/*.png
           if-no-files-found: warn
           retention-days: 90
@@ -78,7 +83,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-v0.3.0-test-logs
+          name: KushMod-v0.3.1-test-logs
           path: logs/*
           if-no-files-found: warn
           retention-days: 14
