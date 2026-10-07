@@ -7,3 +7,4 @@ maxFps:30
 enableVsync:false
 skipMultiplayerWarning:true
 narrator:0
+tutorialStep:none

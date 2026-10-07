@@ -21,7 +21,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_HUD, CAPTURE_HUD, SET_RENDER, CAPTURE_RENDER,
         SET_MOVEMENT, CAPTURE_MOVEMENT, SET_PLAYER, CAPTURE_PLAYER,
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
-        OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG,
+        OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN,
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
         OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, DONE
     }
@@ -46,11 +46,11 @@ public final class CaptureDriver implements ClientModInitializer {
                     } else stableTicks = 0;
                 }
                 case CAPTURE_MAIN -> capture(client, "01-main-menu", State.SET_MAIN_HOVER);
-                case SET_MAIN_HOVER -> { cursor(640,327);waitTicks=35;state=State.CAPTURE_MAIN_HOVER; }
+                case SET_MAIN_HOVER -> { cursor(client,640,327);waitTicks=35;state=State.CAPTURE_MAIN_HOVER; }
                 case CAPTURE_MAIN_HOVER -> capture(client,"16-main-menu-hover",State.SET_TOOL_HOVER);
-                case SET_TOOL_HOVER -> { cursor(1110,42);waitTicks=35;state=State.CAPTURE_TOOL_HOVER; }
-                case CAPTURE_TOOL_HOVER -> { capture(client,"17-toolbar-hover",State.OPEN_MODS);cursor(20,680); }
-                case OPEN_MODS -> { open(client, "net.fastclient.hud.gui.screens.ClickGUIScreen"); waitTicks=60; state=State.CAPTURE_ALL; }
+                case SET_TOOL_HOVER -> { cursor(client,1110,42);waitTicks=35;state=State.CAPTURE_TOOL_HOVER; }
+                case CAPTURE_TOOL_HOVER -> capture(client,"17-toolbar-hover",State.OPEN_MODS);
+                case OPEN_MODS -> { cursor(client,20,680);open(client, "net.fastclient.hud.gui.screens.ClickGUIScreen"); waitTicks=60; state=State.CAPTURE_ALL; }
                 case CAPTURE_ALL -> { category(client, null); capture(client, "02-kush-mods-all", State.SET_HUD); }
                 case SET_HUD -> setCat(client,"HUD",State.CAPTURE_HUD);
                 case CAPTURE_HUD -> capture(client,"03-kush-mods-hud",State.SET_RENDER);
@@ -79,7 +79,9 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case CAPTURE_INSTALLED -> capture(client,"10-installed-mods",State.OPEN_CONFIG);
                 case OPEN_CONFIG -> { openConfig(client);waitTicks=45;state=State.CAPTURE_CONFIG; }
-                case CAPTURE_CONFIG -> capture(client,"11-module-settings",State.START_DEMO);
+                case CAPTURE_CONFIG -> capture(client,"11-module-settings",State.OPEN_DROPDOWN);
+                case OPEN_DROPDOWN -> { expandDropdown(client);waitTicks=40;state=State.CAPTURE_DROPDOWN; }
+                case CAPTURE_DROPDOWN -> capture(client,"18-dropdown-expanded",State.START_DEMO);
                 case START_DEMO -> {
                     client.setScreen(new TitleScreen());
                     waitTicks=60;state=State.WAIT_WORLD;stableTicks=0;
@@ -116,9 +118,25 @@ public final class CaptureDriver implements ClientModInitializer {
         Object instance=main.getDeclaredMethod("getInstance").invoke(null);
         return main.getDeclaredMethod("getModuleManager").invoke(instance);
     }
-    private static void cursor(double x,double y) {
-        long handle=org.lwjgl.glfw.GLFW.glfwGetCurrentContext();
-        if(handle!=0)org.lwjgl.glfw.GLFW.glfwSetCursorPos(handle,x,y);
+    private static void cursor(Minecraft client,double x,double y) throws Exception {
+        Object window=client.getWindow();
+        // The GUI tick need not have the OpenGL context bound. Obtain the
+        // native handle from the window itself, not glfwGetCurrentContext().
+        for(Method m:window.getClass().getMethods()) {
+            if(m.getParameterCount()==0 && m.getReturnType()==long.class && m.getDeclaringClass()==window.getClass()) {
+                long handle=(long)m.invoke(window);
+                if(handle!=0){org.lwjgl.glfw.GLFW.glfwSetCursorPos(handle,x,y);return;}
+            }
+        }
+        throw new IllegalStateException("Native cursor window handle unavailable");
+    }
+    private static void expandDropdown(Minecraft client) throws Exception {
+        Field components=client.screen.getClass().getDeclaredField("components");components.setAccessible(true);
+        for(Object component:(java.util.List<?>)components.get(client.screen))if(component.getClass().getSimpleName().equals("Dropdown")) {
+            Field expanded=component.getClass().getDeclaredField("expanded");expanded.setAccessible(true);expanded.setBoolean(component,true);
+            System.out.println("[KushCapture] expanded settings dropdown");return;
+        }
+        throw new IllegalStateException("Settings dropdown missing");
     }
     private static void verifyTypeface(Minecraft client) throws Exception {
         String name=client.screen==null?"":client.screen.getClass().getName();
