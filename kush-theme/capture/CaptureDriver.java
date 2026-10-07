@@ -131,11 +131,16 @@ public final class CaptureDriver implements ClientModInitializer {
         System.out.println("[KushCapture] Verified modules="+count+" and enabled FPS/Coordinates/Keystrokes");
     }
     private static void pressDemo(Minecraft client) throws Exception {
+        System.out.println("[KushCapture] Demo screen="+client.screen.getClass().getName());
         for(Object child:client.screen.children()) {
             if(!(child instanceof net.minecraft.client.gui.components.AbstractWidget widget))continue;
             String label=widget.getMessage().getString();
+            System.out.println("[KushCapture] Demo control="+label+" class="+widget.getClass().getName());
             if(!label.equals("Play Demo World")&&!label.equals("Jogar mundo de demonstração"))continue;
-            for(java.lang.reflect.Field field:widget.getClass().getDeclaredFields()) {
+            // Minecraft 1.21.11 builds a concrete subclass of abstract Button;
+            // its OnPress callback is declared on the superclass.
+            for(Class<?> owner=widget.getClass();owner!=null;owner=owner.getSuperclass())
+            for(java.lang.reflect.Field field:owner.getDeclaredFields()) {
                 if(!field.getType().isInterface())continue;
                 for(Method method:field.getType().getMethods()) {
                     if(method.getReturnType()==void.class && method.getParameterCount()==1 && method.getParameterTypes()[0].isAssignableFrom(widget.getClass())) {
