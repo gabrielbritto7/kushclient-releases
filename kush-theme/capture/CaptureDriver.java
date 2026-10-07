@@ -170,6 +170,8 @@ public final class CaptureDriver implements ClientModInitializer {
             count++;String name=mod.getClass().getMethod("getName").invoke(mod).toString();
             if(name.equalsIgnoreCase("FPS")||name.equalsIgnoreCase("Coordinates")||name.equalsIgnoreCase("Keystrokes")) {
                 if(!(boolean)mod.getClass().getMethod("isEnabled").invoke(mod))m.getClass().getMethod("toggleModule",Class.forName("net.fastclient.hud.modules.Module")).invoke(m,mod);
+                int x=name.equalsIgnoreCase("FPS")?32:name.equalsIgnoreCase("Keystrokes")?420:770;
+                mod.getClass().getMethod("setHudPosition",int.class,int.class).invoke(mod,x,120);
             }
         }
         m.getClass().getMethod("saveConfig").invoke(m);

@@ -163,6 +163,32 @@ s=s.replace('            this.renderDraggableModule(graphics, dm, pxMouseX, pxMo
     '            dm.updateDimensions();\n            this.renderDraggableModule(graphics, dm, pxMouseX, pxMouseY);',1)
 s=s.replace('FastClientUI.roundedRect(graphics, bx, by, bw, bh, 3, FastClientUI.fade(0x981A161B, 58));',
     '// Draw only bounds: retain the actual HUD appearance without another fill.')
+# Keep editor controls beside the name, never over FPS/coordinate text.
+s=s.replace('        int leftX = bx + 4;\n        int chipY = by + bh - chipSize - 4;',
+    '        int[] settingsBounds = this.getModuleSettingsBounds(dm);\n        int leftX = settingsBounds[0];\n        int chipY = settingsBounds[1];')
+s=re.sub(r'    private boolean isSettingsActionHovered\(.*?(?=    private int getModuleActionSize)', '''    private boolean isSettingsActionHovered(DraggableModule dm, int mouseX, int mouseY) {
+        if (!this.hasSettings(dm)) return false;
+        int[] bounds = this.getModuleSettingsBounds(dm);
+        return mouseX >= bounds[0] && mouseX < bounds[0]+bounds[2]
+            && mouseY >= bounds[1] && mouseY < bounds[1]+bounds[2];
+    }
+
+    private int[] getModuleSettingsBounds(DraggableModule dm) {
+        int size = this.getModuleActionSize(dm);
+        int padding = dm.module.getName().equals("Block Overlay") ? 0 : (int)(5.0f * dm.scale);
+        class_2561 label = FastClientFonts.moduleName(dm.module.getDisplayName());
+        int textWidth = this.field_22793.method_27525(label);
+        int nameX = dm.x-padding+dm.width/2-textWidth/2;
+        nameX = Math.max(2, Math.min(this.screenWidth()-textWidth-2, nameX));
+        int nameY = dm.y-padding-12;
+        if (nameY < 2) nameY = dm.y+dm.height+3;
+        int x = nameX+textWidth+9;
+        if (x+size > this.screenWidth()-2) x = nameX-size-9;
+        int y = nameY-3+(14-size)/2;
+        return new int[]{Math.max(2,x), Math.max(2,Math.min(this.screenHeight()-size-2,y)), size};
+    }
+
+''',s,flags=re.S)
 s=re.sub(r'"Drag modules to reposition[^"\n]*"', '"Arraste para mover · Clique direito para configurar · Right Shift para fechar"',s)
 # The editor repositions enabled modules. Enabling/disabling stays in Settings.
 s=re.sub(r'        int removeSize = this.getModuleRemoveSize\(dm\);\n', '', s)
