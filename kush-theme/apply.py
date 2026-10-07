@@ -136,7 +136,7 @@ s=s.replace('FastClientUI.fade(0x507B3A44, 130)', 'FastClientUI.fade(0xFF110E12,
 s=s.replace('"\\u2713 Enabled"', '"\\u2713 Ativo"').replace('"\\u25cb Disabled"', '"\\u25cb Inativo"')
 s=s.replace('"ESC to go back - changes save automatically"', '"ESC para voltar · Alterações salvas automaticamente"')
 s=re.sub(r'    private void drawFooter\(.*?(?=    private void drawSettingRowBackground)', '''    private void drawFooter(class_332 graphics, int x, int y, int w, int alpha) {
-        class_2561 hint = FastClientFonts.body("ESC para voltar · Alterações salvas automaticamente");
+        net.minecraft.class_2561 hint = FastClientFonts.body("ESC para voltar · Alterações salvas automaticamente");
         float scale = 1.0f;
         int hintWidth = this.field_22793.method_27525(hint);
         graphics.method_51448().pushMatrix();
