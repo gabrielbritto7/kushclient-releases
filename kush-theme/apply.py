@@ -37,6 +37,35 @@ for folder in [JAVA/'gui',JAVA/'launcher']:
         p.write_text(s)
 
 p=JAVA/'gui/FastClientUI.java';s=p.read_text()
+s=re.sub(r'    public static void outline\(.*?(?=    public static void roundedOutline)', '''    public static void outline(class_332 graphics, int x, int y, int w, int h, int color) {
+        if (w <= 0 || h <= 0) return;
+        graphics.method_25294(x, y, x + w, y + 1, color);
+        if (h > 1) graphics.method_25294(x, y + h - 1, x + w, y + h, color);
+        if (h > 2) {
+            graphics.method_25294(x, y + 1, x + 1, y + h - 1, color);
+            if (w > 1) graphics.method_25294(x + w - 1, y + 1, x + w, y + h - 1, color);
+        }
+    }
+
+''',s,flags=re.S)
+# Legacy roundedRect drew two overlapping fills, making translucent middles
+# darker than their corners. All Kush chrome is square and has exactly one fill.
+s=re.sub(r'    public static void roundedRect\(.*?(?=    public static void outline)', '''    public static void roundedRect(class_332 graphics, int x, int y, int w, int h, int radius, int color) {
+        if (w > 0 && h > 0) graphics.method_25294(x, y, x + w, y + h, color);
+    }
+
+''',s,flags=re.S)
+s=re.sub(r'    public static void roundedOutline\(.*?(?=    public static void borderedRoundedRect)', '''    public static void roundedOutline(class_332 graphics, int x, int y, int w, int h, int radius, int color) {
+        outline(graphics, x, y, w, h, color);
+    }
+
+''',s,flags=re.S)
+s=re.sub(r'    public static void borderedRoundedRect\(.*?(?=    public static void hudPanel)', '''    public static void borderedRoundedRect(class_332 graphics, int x, int y, int w, int h, int radius, int fillColor, int borderColor) {
+        if (w > 2 && h > 2) graphics.method_25294(x + 1, y + 1, x + w - 1, y + h - 1, fillColor);
+        outline(graphics, x, y, w, h, borderColor);
+    }
+
+''',s,flags=re.S)
 s=s.replace('    public static int blend(', '''    public static int fade(int color, int alpha) {
         return withAlpha(color, Math.round(((color >>> 24) & 255) * Math.max(0, Math.min(255, alpha)) / 255.0f));
     }
@@ -64,7 +93,7 @@ p.write_text(s)
 
 p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
 s=s.replace('"FastClientHUD"','"Kush Mods"')
-s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.1  ·  Minecraft 1.21.11"')
+s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.2  ·  Minecraft 1.21.11"')
 s=s.replace('"MOD MENU"','"KUSH MODS"')
 s=s.replace('"All" : categories', '"Todos" : categories')
 s=s.replace('"Search"','"Buscar"')
@@ -106,6 +135,18 @@ s=s.replace('FastClientUI.fade(0x981A161B, 150)', 'FastClientUI.fade(0xE81A181C,
 s=s.replace('FastClientUI.fade(0x507B3A44, 130)', 'FastClientUI.fade(0xFF110E12, 210)')
 s=s.replace('"\\u2713 Enabled"', '"\\u2713 Ativo"').replace('"\\u25cb Disabled"', '"\\u25cb Inativo"')
 s=s.replace('"ESC to go back - changes save automatically"', '"ESC para voltar · Alterações salvas automaticamente"')
+s=re.sub(r'    private void drawFooter\(.*?(?=    private void drawSettingRowBackground)', '''    private void drawFooter(class_332 graphics, int x, int y, int w, int alpha) {
+        class_2561 hint = FastClientFonts.body("ESC para voltar · Alterações salvas automaticamente");
+        float scale = 1.0f;
+        int hintWidth = this.field_22793.method_27525(hint);
+        graphics.method_51448().pushMatrix();
+        graphics.method_51448().translate(x + (w - hintWidth * scale) / 2.0f, y + 12);
+        graphics.method_51448().scale(scale, scale);
+        graphics.method_51439(this.field_22793, hint, 0, 0, FastClientUI.fade(0xFF969098, Math.round(alpha * .45f)), false);
+        graphics.method_51448().popMatrix();
+    }
+
+''', s, flags=re.S)
 s=s.replace('FastClientUI.fade(-16777216, 170)', 'FastClientUI.fade(-16777216, 55)')
 p.write_text(s)
 
@@ -115,7 +156,13 @@ s=s.replace('"textures/gui/fasticon_white.png"','"textures/gui/kush/k_white.png"
 s=s.replace('new String[][]{{"overlay_store", "\\uea12", "Store"}, {"overlay_cosmetics", "\\uf19e", "Cosmetics"}, {"overlay_social", "\\ue8af", "Social"}}','new String[][]{{"overlay_cosmetics", "\\uf19e", "Cosméticos"}}')
 s=s.replace('graphics.method_25291(class_10799.field_56883, DisplaySpace.texture(LOGO_TEXTURE), logoX, logoY, 0.0f, 0.0f, logoSize, logoSize, logoSize, logoSize, logoColor);','net.fastclient.hud.gui.KushAssets.image(graphics, LOGO_TEXTURE, logoX, logoY, logoSize, logoSize, 1254, 1254, logoColor);')
 s=s.replace('graphics.method_25293(class_10799.field_56883, DisplaySpace.texture(FAST_SETTINGS_ICON), contentX, iconY, 0.0f, 0.0f, iconWidth, iconWidth, 96, 96, 96, 96, color);','net.fastclient.hud.gui.KushAssets.image(graphics, FAST_SETTINGS_ICON, contentX, iconY, iconWidth, iconWidth, 1246, 1263, color);')
-s=s.replace('        DisplaySpace.push(graphics);\n        if (this.dragging == null)', '        if (this.dragging == null) graphics.method_71278();\n        DisplaySpace.push(graphics);\n        net.fastclient.hud.gui.KushAssets.backdrop(graphics, this.screenWidth(), this.screenHeight());\n        if (this.dragging == null)',1)
+s=s.replace('        DisplaySpace.push(graphics);\n        if (this.dragging == null)', '        DisplaySpace.push(graphics);\n        net.fastclient.hud.gui.KushAssets.backdrop(graphics, this.screenWidth(), this.screenHeight());\n        if (this.dragging == null)',1)
+# Real modules have already rendered through RenderManager's HUD callback.
+# Leave that framebuffer sharp in the editor; config screens own their blur.
+s=s.replace('            this.renderDraggableModule(graphics, dm, pxMouseX, pxMouseY);',
+    '            dm.updateDimensions();\n            this.renderDraggableModule(graphics, dm, pxMouseX, pxMouseY);',1)
+s=s.replace('FastClientUI.roundedRect(graphics, bx, by, bw, bh, 3, FastClientUI.fade(0x981A161B, 58));',
+    '// Draw only bounds: retain the actual HUD appearance without another fill.')
 s=re.sub(r'"Drag modules to reposition[^"\n]*"', '"Arraste para mover · Clique direito para configurar · Right Shift para fechar"',s)
 # The editor repositions enabled modules. Enabling/disabling stays in Settings.
 s=re.sub(r'        int removeSize = this.getModuleRemoveSize\(dm\);\n', '', s)
@@ -148,12 +195,12 @@ s=re.sub(r'    private void drawFastSettingsButton\(.*?(?=    private void drawQ
         float scale = FastClientFonts.bodyScale();
         int iconWidth = HudOverlayScreen.centerFastSettingsIconSize();
         int labelWidth = Math.round(this.field_22793.method_27525((class_5348)label)*scale);
-        int gap = Math.max(5, Math.round(height*.08f));
+        int gap = Math.max(9, Math.round(height*.08f));
         int contentX = x + (width-iconWidth-gap-labelWidth)/2;
         int centerY = y+height/2;
         int color = FastClientUI.fade(-723724, alpha);
-        net.fastclient.hud.gui.KushAssets.image(graphics, FAST_SETTINGS_ICON, contentX, centerY-iconWidth/2,
-            iconWidth, iconWidth, 1246, 1263, color);
+        net.fastclient.hud.gui.KushAssets.labelK(graphics, contentX-3, centerY-Math.round(4.5f*scale),
+            Math.round(8*scale), color);
         this.drawScaledText(graphics, label, contentX+iconWidth+gap+labelWidth/2, centerY, scale, color, false);
     }
 
@@ -164,7 +211,7 @@ s=s.replace('this.drawScaledText(graphics, FastClientFonts.filledMaterialSymbol(
     'net.fastclient.hud.gui.KushAssets.symbol(graphics, "gear", leftX+3, chipY+3, chipSize-6, FastClientUI.fade(settingsHovered ? -723724 : -7303024, 235));')
 p.write_text(s)
 
-props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.1').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
+props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.2').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
 props.write_text(s)
 print('Theme applied')
 
@@ -179,6 +226,10 @@ p=JAVA/'mixin/client/TitleScreenMixin.java';s=p.read_text().replace('           
 
 p=JAVA/'mixin/client/TitleScreenMixin.java';s=p.read_text().replace('                mc.method_1507(new net.fastclient.hud.gui.screens.StoreScreen(self));','                try {\n                    mc.method_1507((net.minecraft.class_437) Class.forName("net.fastclient.client.gui.CosmeticsScreen").getConstructor().newInstance());\n                } catch (ReflectiveOperationException unavailable) {\n                    mc.method_1507(new net.fastclient.hud.gui.screens.StoreScreen(self));\n                }');p.write_text(s)
 p=JAVA/'mixin/client/PauseScreenMixin.java';s=p.read_text().replace('        class_310 mc = class_310.method_1551();\n        DisplaySpace.push(graphics);','        class_310 mc = class_310.method_1551();\n        graphics.method_71278();\n        DisplaySpace.push(graphics);',1);p.write_text(s)
+p=JAVA/'mixin/client/TitleScreenMixin.java';s=p.read_text().replace(
+    'graphics.method_25291(class_10799.field_56883, DisplaySpace.texture(BACKGROUND), backgroundX, backgroundY, 0.0f, 0.0f, backgroundWidth, backgroundHeight, backgroundWidth, backgroundHeight, -1);',
+    'net.fastclient.hud.gui.KushAssets.menuLandscape(graphics, width, height);')
+p.write_text(s)
 p=JAVA/'gui/screens/HudOverlayScreen.java';s=p.read_text().replace('                class_310.method_1551().method_1507((class_437)new StoreScreen((class_437)this));','                try {\n                    class_310.method_1551().method_1507((class_437) Class.forName("net.fastclient.client.gui.CosmeticsScreen").getConstructor().newInstance());\n                } catch (ReflectiveOperationException unavailable) {\n                    class_310.method_1551().method_1507(new StoreScreen(this));\n                }',1);p.write_text(s)
 
 for p in (JAVA/'gui').rglob('*.java'):

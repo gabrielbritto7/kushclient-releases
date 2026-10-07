@@ -41,7 +41,7 @@ public final class KushInstalledModsScreen extends class_437 {
         int y=top-(int)scroll;
         for(ModContainer mod:mods) {
             if(y+66>top&&y<bottom) {
-                FastClientUI.borderedRoundedRect(g,panelX+20,y,panelW-40,58,7,0x891E161E,0x3066404B);
+                FastClientUI.borderedRoundedRect(g,panelX+20,y,panelW-40,58,0,0x891E161E,0x3066404B);
                 draw(g,mod.getMetadata().getName(),panelX+36,y+10,0xFFF2E8ED,2f,true);
                 draw(g,mod.getMetadata().getId()+" · "+mod.getMetadata().getVersion().getFriendlyString(),panelX+36,y+34,0xFFAAA2A8,1f,false);
             }

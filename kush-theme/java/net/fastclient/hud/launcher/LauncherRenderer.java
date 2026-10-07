@@ -90,9 +90,10 @@ public final class LauncherRenderer {
         REGIONS.put(id,new int[]{x,y,w,h});boolean hovered=hit(x,y,w,h,mx,my);
         surface(g,id,x,y,w,h,hovered,false);
         class_2561 c=class_2561.method_43470(label);
-        int tw=font.method_27525((class_5348)c)*2, iw=22, gap=8, contentX=x+(w-tw-iw-gap)/2;
-        if(icon.equals("kush"))KushAssets.image(g,KushAssets.WHITE_K,contentX,y+(h-iw)/2,iw,iw,1246,1263,-1);
-        else KushAssets.symbol(g,icon,contentX,y+(h-iw)/2,iw,hovered?0xFFFFDFE1:0xFFBEB8BE);
+        int tw=font.method_27525((class_5348)c)*2, iw=18, gap=10, contentX=x+(w-tw-iw-gap)/2;
+        int inkTop=y+h/2-9;
+        if(icon.equals("kush"))KushAssets.labelK(g,contentX-3,inkTop,16,-1);
+        else KushAssets.symbol(g,icon,contentX,inkTop,iw,hovered?0xFFFFDFE1:0xFFBEB8BE);
         text(g,font,c,contentX+iw+gap+tw/2,y+h/2,2f,TEXT);
     }
     private static void button(class_332 g,class_327 font,String id,String label,int x,int y,int w,int h,int mx,int my,boolean accent) {

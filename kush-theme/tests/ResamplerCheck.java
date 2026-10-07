@@ -28,7 +28,7 @@ public final class ResamplerCheck {
             if(a>40 && a<240){coverage++;check((argb&0xFFFFFF)>=0xFDFDFD,"Transparent edge must not turn black");}
         }
         check(coverage>10,"Reduced logos need smooth alpha coverage");
-        for(String name:new String[]{"gear","folder","hanger"}) {
+        for(String name:new String[]{"gear","folder","hanger","mods","lan","exit","chart","award"}) {
             BufferedImage icon=KushImageResampler.icon(name,24,24);
             int soft=0;for(int y=0;y<24;y++)for(int x=0;x<24;x++) {int a=icon.getRGB(x,y)>>>24;if(a>0 && a<255)soft++;}
             check(soft>10,"Chrome icon requires antialiased edges: "+name);

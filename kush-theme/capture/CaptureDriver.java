@@ -33,6 +33,11 @@ public final class CaptureDriver implements ClientModInitializer {
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
         System.out.println("[KushCapture] initialized");
+        for(String name:new String[]{"net.fastclient.core.equip.CosmeticsAvailability","net.fastclient.hud.web.StoreAvailability"}) {
+            try {Class<?> c=Class.forName(name);Field flag=c.getDeclaredField("AVAILABLE");flag.setAccessible(true);
+                System.out.println("[KushCapture] "+name+" AVAILABLE="+flag.get(null));}
+            catch(Exception missing){System.out.println("[KushCapture] availability check: "+missing);}
+        }
     }
 
     private static void tick(Minecraft client) {
@@ -45,7 +50,7 @@ public final class CaptureDriver implements ClientModInitializer {
                         if (++stableTicks >= 80) state = State.CAPTURE_MAIN;
                     } else stableTicks = 0;
                 }
-                case CAPTURE_MAIN -> capture(client, "01-main-menu", State.SET_MAIN_HOVER);
+                case CAPTURE_MAIN -> capture(client, "01-main-menu", State.OPEN_MODS);
                 case SET_MAIN_HOVER -> { cursor(client,640,327);waitTicks=35;state=State.CAPTURE_MAIN_HOVER; }
                 case CAPTURE_MAIN_HOVER -> capture(client,"16-main-menu-hover",State.SET_TOOL_HOVER);
                 case SET_TOOL_HOVER -> { cursor(client,1110,42);waitTicks=35;state=State.CAPTURE_TOOL_HOVER; }

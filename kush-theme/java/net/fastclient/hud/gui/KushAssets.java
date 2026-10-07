@@ -20,7 +20,8 @@ public final class KushAssets {
     public static final class_2960 WHITE_K = texture("k_white.png");
     public static final class_2960 WORDMARK = texture("wordmark.png");
     private static final class_2960 GRAY_WORDMARK = texture("wordmark_gray_runtime");
-    private static final class_2960 BACKGROUND = class_2960.method_60655("fastclient-hud", "textures/gui/new-background.png");
+    private static final class_2960 LABEL_K = texture("k_white_label_runtime");
+    private static final class_2960 BACKGROUND = texture("menu-landscape.png");
     private static final Map<class_2960, BufferedImage> SOURCES = new HashMap<>();
     private static final Map<String, class_2960> SCALED = new LinkedHashMap<>(32, .75f, true);
     private static final int CACHE_LIMIT = 64;
@@ -60,6 +61,15 @@ public final class KushAssets {
     public static class_2960 grayWordmark() {
         return GRAY_WORDMARK;
     }
+    /** Align the visible K to the Minecraft cap height, not its transparent canvas. */
+    public static void labelK(class_332 g, int x, int top, int capHeight, int color) {
+        try {
+            BufferedImage glyph = source(LABEL_K);
+            image(g, LABEL_K, x, top, capHeight, capHeight, glyph.getWidth(), glyph.getHeight(), color);
+        } catch (Exception unavailable) {
+            image(g, WHITE_K, x, top, capHeight, capHeight, 1246, 1263, color);
+        }
+    }
     public static void symbol(class_332 g, String name, int x, int y, int size, int color) {
         int pw = physicalWidth(size), ph = physicalHeight(size);
         String key = "symbol/" + name + "@" + pw + "x" + ph;
@@ -87,12 +97,13 @@ public final class KushAssets {
     private static BufferedImage source(class_2960 id) throws Exception {
         BufferedImage source = SOURCES.get(id);
         if (source != null) return source;
-        class_2960 resource = id.equals(GRAY_WORDMARK) ? WORDMARK : id;
+        class_2960 resource = id.equals(GRAY_WORDMARK) ? WORDMARK : id.equals(LABEL_K) ? WHITE_K : id;
         try (InputStream stream = KushAssets.class.getResourceAsStream("/assets/" + resource.method_12836() + "/" + resource.method_12832())) {
             if (stream == null) throw new IllegalArgumentException("Missing original PNG " + resource);
             source = ImageIO.read(stream);
         }
         if (source == null) throw new IllegalArgumentException("Invalid original PNG " + resource);
+        if (id.equals(LABEL_K)) source = KushImageResampler.uprightGlyph(source, 5.0);
         if (id.equals(GRAY_WORDMARK)) {
             for (int y = 0; y < source.getHeight(); y++) for (int x = 0; x < source.getWidth(); x++) {
                 int argb = source.getRGB(x, y);
@@ -119,18 +130,17 @@ public final class KushAssets {
     }
     public static void backdrop(class_332 g, int w, int h) {
         if (class_310.method_1551().field_1687 != null) return;
-        int bh = Math.max(h, Math.round(w * 9f / 16f));
-        int bw = Math.max(w, Math.round(bh * 16f / 9f));
-        image(g, DisplaySpace.texture(BACKGROUND), (w-bw)/2, (h-bh)/2, bw, bh, 3840, 2160, -1);
+        menuLandscape(g, w, h);
         g.method_25294(0, 0, w, h, 0x9910090D);
     }
+    public static void menuLandscape(class_332 g, int w, int h) {
+        double scale = Math.max(w / 1920.0, h / 1017.0);
+        int bw = (int)Math.ceil(1920 * scale), bh = (int)Math.ceil(1017 * scale);
+        image(g, BACKGROUND, (w-bw)/2, (h-bh)/2, bw, bh, 1920, 1017, -1);
+    }
     public static void glass(class_332 g, int x, int y, int w, int h, int alpha) {
-        FastClientUI.roundedRect(g, x-2, y+4, w+4, h+3, 12, FastClientUI.withAlpha(0xFF000000, Math.round(alpha*0.10f)));
-        // A translucent border filled across the panel adds another dark layer.
-        // Keep it on the perimeter so the scene remains visible through glass.
-        FastClientUI.roundedRect(g, x, y, w, h, 10, FastClientUI.fade(0x740E0C10, alpha));
-        FastClientUI.roundedOutline(g, x, y, w, h, 10, FastClientUI.fade(0x607B3A44, alpha));
-        g.method_25294(x+12, y+1, x+w-12, y+2, FastClientUI.withAlpha(0xFFF5CAD3, Math.round(alpha*0.16f)));
-        g.method_25294(x+12, y+2, x+w-12, y+32, FastClientUI.withAlpha(0xFF7B3A44, Math.round(alpha*0.025f)));
+        // One fill: overlapping translucent rectangles darken their middle.
+        g.method_25294(x, y, x+w, y+h, FastClientUI.fade(0xA0141115, alpha));
+        FastClientUI.outline(g, x, y, w, h, FastClientUI.fade(0x806C303C, alpha));
     }
 }
