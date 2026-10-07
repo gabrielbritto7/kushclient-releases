@@ -166,7 +166,7 @@ public final class CaptureDriver implements ClientModInitializer {
                         if(!Files.readString(loadout).contains("kush-site-"))throw new IllegalStateException("Cape selection was not persisted");
                     }
                     client.setScreen(null);
-                    if(cape("forPreview")!=null)throw new IllegalStateException("Preview leaked after screen close");
+                    if((boolean)local().getClass().getMethod("hasPreview").invoke(local()))throw new IllegalStateException("Preview leaked after screen close");
                     if(cape("forRender")==null)throw new IllegalStateException("Equipped cape lost on screen close");
                     String saved=Files.readString(client.gameDirectory.toPath().resolve("config/kushmod/language.txt"));
                     if(!saved.equals("pt_br"))throw new IllegalStateException("Language preference not persisted");
