@@ -1,0 +1,53 @@
+name: Probe FastClient Cosmetics API
+
+on:
+  push:
+    branches: [probe/fastclient-cosmetics-now]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe public catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error
+          urls = [
+              'https://api.fastclient.net/api/v1/store/catalog',
+              'https://fastclient.net/store'
+          ]
+          for url in urls:
+              print('\nURL', url)
+              req = urllib.request.Request(url, headers={'User-Agent':'KushClient-Cosmetics-Probe/1.0','Accept':'application/json,text/html;q=0.8,*/*;q=0.1'})
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      body = r.read(2_000_000)
+                      print('STATUS', r.status)
+                      print('CONTENT-TYPE', r.headers.get('content-type'))
+                      print('BYTES', len(body))
+                      if 'store/catalog' in url:
+                          try:
+                              data = json.loads(body)
+                              if isinstance(data, dict):
+                                  print('JSON_KEYS', sorted(data.keys()))
+                                  cosmetics = data.get('cosmetics')
+                                  print('COSMETICS_COUNT', len(cosmetics) if isinstance(cosmetics, list) else 'not-list')
+                                  if isinstance(cosmetics, list) and cosmetics:
+                                      print('FIRST_ITEM_KEYS', sorted(cosmetics[0].keys()) if isinstance(cosmetics[0], dict) else type(cosmetics[0]).__name__)
+                              else:
+                                  print('JSON_TYPE', type(data).__name__)
+                          except Exception as e:
+                              print('JSON_PARSE_ERROR', repr(e))
+                              print('BODY_PREFIX', body[:500])
+                      else:
+                          print('BODY_PREFIX', body[:300])
+              except urllib.error.HTTPError as e:
+                  body=e.read(1000)
+                  print('HTTP_ERROR', e.code)
+                  print('BODY_PREFIX', body[:500])
+              except Exception as e:
+                  print('ERROR', type(e).__name__, repr(e))
+          PY
