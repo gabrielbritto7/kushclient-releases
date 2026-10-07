@@ -364,3 +364,9 @@ click=click.replace('        int button = event.method_74245();','''        int 
         }''',1)
 s=head+click;p.write_text(s)
 print('Kush language, modal panels and cosmetics controls applied')
+
+# Use local text coordinates for native GUI stratum bounds under scaled fonts.
+p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
+s=s.replace('        graphics.method_51448().translate((float)(-x), (float)(-y));\n        graphics.method_51439(this.field_22793, FastClientFonts.body(text), x, y, color, false);', '        graphics.method_51439(this.field_22793, FastClientFonts.body(text), 0, 0, color, false);')
+s=s.replace('        graphics.method_51448().translate(-textX, -textY);\n        graphics.method_51439(this.field_22793, text, Math.round(textX), Math.round(textY), color, false);', '        graphics.method_51439(this.field_22793, text, 0, 0, color, false);')
+p.write_text(s)

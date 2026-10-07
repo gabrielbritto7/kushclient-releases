@@ -77,7 +77,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
                     JsonObject item=element.getAsJsonObject();String id=UUID.fromString(item.get("id").getAsString()).toString();
                     String digest=item.get("sha256").getAsString();if(!digest.matches("[a-f0-9]{64}"))continue;
                     String ref=SITE+"/api/kush?resource=texture&id="+id;
-                    hashes.put(ref,digest);next.add(cape("kush-site-"+id,item.get("name").getAsString(),ref));
+                    String previous=hashes.put(ref,digest);if(previous!=null && !previous.equals(digest))assets.remove(ref);next.add(cape("kush-site-"+id,item.get("name").getAsString(),ref));
                 }
                 atomic(root.resolve("site-catalog-"+page+".json"),new String(bytes,StandardCharsets.UTF_8));
             }

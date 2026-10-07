@@ -15,6 +15,7 @@ import net.minecraft.class_2561;
 public final class KushLanguage {
     private static final Map<String,String> PT = load();
     private static final Map<String,String> EN = reverse();
+    private static final Map<String,String> PT_FOLD=fold(PT), EN_FOLD=fold(EN);
     private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("kushmod/language.txt");
     private static boolean portuguese = preference();
     private KushLanguage() {}
@@ -33,6 +34,9 @@ public final class KushLanguage {
         result.put("Um jogador","Singleplayer");
         result.put("ESC para voltar · Alterações salvas automaticamente","ESC to go back - changes save automatically");
         return Map.copyOf(result);
+    }
+    private static Map<String,String> fold(Map<String,String> map) {
+        Map<String,String> out=new HashMap<>();map.forEach((k,v)->out.putIfAbsent(k.toLowerCase(Locale.ROOT),v));return Map.copyOf(out);
     }
     private static boolean preference() {
         try {return !Files.readString(FILE).trim().equals("en_us");}
@@ -57,6 +61,7 @@ public final class KushLanguage {
         if(text==null || text.isEmpty())return text;
         String exact=portuguese?PT.get(text):EN.get(text);
         if(exact!=null)return exact;
+        String folded=(portuguese?PT_FOLD:EN_FOLD).get(text.toLowerCase(Locale.ROOT));if(folded!=null)return folded;
         // Counts retain their numerical value and spacing.
         if(portuguese && text.matches("[0-9]+ layouts"))return text.replace(" layouts"," opções");
         if(!portuguese && text.matches("[0-9]+ opções"))return text.replace(" opções"," layouts");

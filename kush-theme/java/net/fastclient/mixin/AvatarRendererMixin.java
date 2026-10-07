@@ -55,7 +55,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class AvatarRendererMixin
 extends class_922<class_11890, class_10055, class_591> {
     protected AvatarRendererMixin(class_5617.class_5618 context, class_591 model, float shadowRadius) {
-        super(context, (class_583)model, shadowRadius);
+        super(context, model, shadowRadius);
     }
 
     @Inject(method={"<init>"}, at={@At(value="TAIL")})

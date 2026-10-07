@@ -121,7 +121,6 @@ extends class_437 {
     }
 
     public void method_25394(class_332 g, int mouseX, int mouseY, float partial) {
-        g.method_71278();
         g.method_25294(0,0,this.field_22789,this.field_22790,0xB009070A);
         int w=Math.min(this.field_22789-16,760),h=Math.min(this.field_22790-16,460);
         int x=(this.field_22789-w)/2,y=(this.field_22790-h)/2;
