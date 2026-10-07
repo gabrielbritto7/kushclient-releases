@@ -11,7 +11,7 @@
         int statusColor = this.module.isEnabled() ? 0xFFE53542 : -7303024;
         graphics.method_25294(x, y, x + w, y + 2, FastClientUI.fade(this.module.isEnabled() ? 0xFFE53542 : 0x507B3A44, alpha));
         int textX = x + 100, centerY = y + 33, gap = 14;
-        class_2561 name = FastClientFonts.title(this.module.getDisplayName());
+        net.minecraft.class_2561 name = FastClientFonts.title(this.module.getDisplayName());
         int rawWidth = this.field_22793.method_27525(name);
         int room = Math.max(1, x + w - 24 - textX - this.uiTextWidth(status) - gap);
         float scale = Math.min(FastClientFonts.titleScale(), room / (float)Math.max(1, rawWidth));
