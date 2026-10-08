@@ -396,7 +396,7 @@ public final class CaptureDriver implements ClientModInitializer {
                     Field components=client.screen.getClass().getDeclaredField("components");components.setAccessible(true);
                     Object button=((java.util.List<?>)components.get(client.screen)).stream().filter(x->x.getClass().getSimpleName().equals("KushWaveyButton")).findFirst().orElseThrow();
                     int x=(int)button.getClass().getMethod("getX").invoke(button),y=(int)button.getClass().getMethod("getY").invoke(button);
-                    client.screen.mouseClicked(new net.minecraft.client.input.MouseButtonEvent(x+12,y+12,new net.minecraft.client.input.MouseButtonInfo(0,0)),false);
+                    client.screen.mouseClicked(new net.minecraft.client.input.MouseButtonEvent((x+12)*client.getWindow().getGuiScaledWidth()/(double)(int)Class.forName("net.fastclient.hud.gui.DisplaySpace").getMethod("width").invoke(null),(y+12)*client.getWindow().getGuiScaledHeight()/(double)(int)Class.forName("net.fastclient.hud.gui.DisplaySpace").getMethod("height").invoke(null),new net.minecraft.client.input.MouseButtonInfo(0,0)),false);
                     if(client.screen==waveyParent)throw new IllegalStateException("Native settings button did not open Wavey");
                     System.out.println("[KushCapture] Wavey original settings opened by native Kush button: "+client.screen.getClass().getName());
                     waitTicks=45;state=State.CAPTURE_WAVEY_NATIVE;

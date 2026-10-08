@@ -36,8 +36,8 @@ public final class LauncherRenderer {
     public static void render(class_332 g, class_327 font, int w, int h, int mx, int my) {
         REGIONS.clear(); g.method_25294(0, 0, w, h, 0xA509070A);
         int cx=w/2, bh=Math.max(34,Math.min(44,h/17)), gap=8, bw=Math.min(310,w-40);
-        int start=Math.max(166,h/2-54),logoW=Math.min(286,Math.round(h*0.40f)),logoH=Math.round(logoW*946f/1694f);
-        KushAssets.image(g,KushAssets.SKATE,cx-logoW/2,start-logoH-22,logoW,logoH,1694,946,-1);
+        int start=Math.max(166,h/2-54),logoW=Math.min(286,Math.round(h*0.40f)),logoH=Math.round(logoW*941f/1672f);
+        KushAssets.image(g,KushAssets.SKATE,cx-logoW/2,start-logoH-22,logoW,logoH,1672,941,-1);
         button(g,font,"singleplayer","Um jogador",cx-bw/2,start,bw,bh,mx,my,false);
         button(g,font,"multiplayer","Multijogador",cx-bw/2,start+(bh+gap),bw,bh,mx,my,false);
         button(g,font,"skins","Cosméticos",cx-bw/2,start+(bh+gap)*2,bw,bh,mx,my,false);
@@ -73,8 +73,8 @@ public final class LauncherRenderer {
         float s=Math.min(w/1920f,h/1080f);
         int cx=w/2,bh=Math.max(32,Math.round(69*s)),gap=Math.max(4,Math.round(6*s));
         int start=Math.max(156,h/2-Math.round(174*s)),bw=Math.min(w-40,Math.max(240,Math.round(360*s)));
-        int lw=Math.round(324*s),lh=Math.round(lw*946f/1694f);
-        KushAssets.image(g,KushAssets.SKATE,cx-lw/2,start-lh-16,lw,lh,1694,946,-1);
+        int lw=Math.round(324*s),lh=Math.round(lw*941f/1672f);
+        KushAssets.image(g,KushAssets.SKATE,cx-lw/2,start-lh-16,lw,lh,1672,941,-1);
         String[][] rows={{"pause_backtogame","Voltar ao jogo","back"},{"pause_fastclient_settings","Kush Settings","kush"},
             {"pause_options","Opções","gear"},{"pause_open_to_lan","Abrir para LAN","lan"},
             {"pause_modmenu","Mods","mods"},{"pause_disconnect","Desconectar","exit"}};
