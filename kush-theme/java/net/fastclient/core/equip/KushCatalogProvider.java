@@ -23,6 +23,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
     private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).followRedirects(HttpClient.Redirect.NEVER).build();
     private final Map<String,byte[]> assets=Collections.synchronizedMap(new LinkedHashMap<>());
     private final Map<String,String> hashes=new ConcurrentHashMap<>();
+    private final Map<String,Integer> cosmeticaFrames=new ConcurrentHashMap<>();
     private volatile List<CatalogEntry> entries=List.of();
     private volatile Set<String> selected=Set.of();
     private volatile PlayerCosmetics snapshot=PlayerCosmetics.emptyInstance();
@@ -53,8 +54,8 @@ public final class KushCatalogProvider implements CosmeticProvider {
     }
     private byte[] get(String url,int limit)throws Exception {
         URI uri=URI.create(url);
-        if(!"https".equals(uri.getScheme()) || !"kush-archives.com.br".equals(uri.getHost()) || uri.getPort()!=-1 || uri.getUserInfo()!=null)throw new IOException("Unexpected asset host");
-        HttpRequest request=HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15)).header("User-Agent","KushMod/0.3.6").GET().build();
+        if(!"https".equals(uri.getScheme()) || !Set.of("kush-archives.com.br","api.cloaks.gg","cdn.cosmetica.cc").contains(uri.getHost()) || uri.getPort()!=-1 || uri.getUserInfo()!=null)throw new IOException("Unexpected asset host");
+        HttpRequest request=HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15)).header("User-Agent","Mozilla/5.0 KushMod/0.3.6").GET().build();
         HttpResponse<InputStream> response=http.send(request,HttpResponse.BodyHandlers.ofInputStream());
         try(InputStream stream=response.body()) {
             if(response.statusCode()!=200)throw new IOException("Catalog HTTP "+response.statusCode());
@@ -63,6 +64,46 @@ public final class KushCatalogProvider implements CosmeticProvider {
     }
     private static CatalogEntry cape(String id,String name,String ref) {
         return new CatalogEntry(id,name,"cape",true,Attach.BODY,0,null,ref,null,null,null,null,null,null,null,null,null,null,null,0,null);
+    }
+    private void addCosmetica(List<CatalogEntry> target,JsonObject response) {
+        Set<String> seen=new HashSet<>();
+        for(JsonElement element:response.getAsJsonArray("results")) {
+            if(target.size()>=240)break;
+            try {
+                JsonObject row=element.getAsJsonObject();
+                if(!"animated_texture_cosmetic".equals(row.get("type").getAsString()))continue;
+                JsonObject item=row.getAsJsonObject("animatedTextureCosmetic");
+                if(!"cape".equals(item.get("type").getAsString()) || item.get("state").getAsInt()!=2)continue;
+                String id=item.get("id").getAsString(),ref=item.get("texture").getAsString();
+                if(!id.matches("[a-zA-Z0-9_-]{1,64}") || !seen.add(id))continue;
+                URI uri=URI.create(ref);
+                if(!"https".equals(uri.getScheme()) || !"cdn.cosmetica.cc".equals(uri.getHost()) || uri.getPort()!=-1 || uri.getUserInfo()!=null || uri.getQuery()!=null || uri.getFragment()!=null || !uri.getPath().matches("/assets/[a-f0-9]{3}/[a-f0-9-]{36}\\.png"))continue;
+                int frames=item.get("frames").getAsInt(),ticks=item.get("ticksPerFrame").getAsInt();
+                if(frames<1 || frames>256 || ticks<1 || ticks>200)continue;
+                cosmeticaFrames.put(ref,frames);
+                target.add(new CatalogEntry("cosmetica-"+id,"[Cosmetica] "+item.get("name").getAsString(),"cape",true,Attach.BODY,0,null,ref,null,null,null,null,null,null,null,null,null,null,null,frames>1?ticks*50:0,null));
+            }catch(RuntimeException ignored){}
+        }
+    }
+    private void loadCosmetica(List<CatalogEntry> target) {
+        Path file=root.resolve("cosmetica-catalog.json");
+        try {
+            String payload="{\"query\":\"\",\"pageSize\":20,\"page\":1,\"attachments\":[\"cape\"],\"sortBy\":\"most-popular\"}";
+            HttpRequest request=HttpRequest.newBuilder(URI.create("https://api.cloaks.gg/search/cosmetics"))
+                .timeout(Duration.ofSeconds(15)).header("Content-Type","application/json").header("User-Agent","Mozilla/5.0 KushMod/0.3.6")
+                .POST(HttpRequest.BodyPublishers.ofString(payload)).build();
+            HttpResponse<InputStream> response=http.send(request,HttpResponse.BodyHandlers.ofInputStream());
+            try(InputStream input=response.body()) {
+                if(response.statusCode()!=200)throw new IOException("Cosmetica HTTP "+response.statusCode());
+                byte[] bytes=input.readNBytes(1024*1024+1);if(bytes.length>1024*1024)throw new IOException("Cosmetica catalog size");
+                String text=new String(bytes,StandardCharsets.UTF_8);JsonObject obj=JsonParser.parseString(text).getAsJsonObject();
+                addCosmetica(target,obj);atomic(file,text);
+            }
+        }catch(Exception e) {
+            org.slf4j.LoggerFactory.getLogger("Kush").debug("Cosmetica unavailable; using cached capes");
+            try{if(Files.exists(file) && Files.size(file)<=1024*1024)addCosmetica(target,JsonParser.parseString(Files.readString(file)).getAsJsonObject());}
+            catch(Exception ignored){}
+        }
     }
     @Override public synchronized List<CatalogEntry> catalog() {
         List<CatalogEntry> next=new ArrayList<>();boolean remoteOk=false;
@@ -98,6 +139,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
                 }catch(Exception ignored){}
             }
         }
+        loadCosmetica(next);
         try {
             Path file=root.resolve("catalog.json");if(Files.size(file)>1024*1024)throw new IOException("Local catalog size limit");
             JsonObject obj=JsonParser.parseString(Files.readString(file)).getAsJsonObject();
@@ -106,7 +148,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
             for(JsonElement el:obj.getAsJsonArray("items")) {
                 if(next.size()>=600)break;
                 CatalogEntry entry=new Gson().fromJson(el,CatalogEntry.class);
-                if(entry.id()==null || !entry.id().matches("[a-zA-Z0-9_-]{1,80}") || entry.id().startsWith("kush-site-") || !TYPES.contains(entry.category()) || !seen.add(entry.id()))continue;
+                if(entry.id()==null || !entry.id().matches("[a-zA-Z0-9_-]{1,80}") || (entry.id().startsWith("kush-site-") || entry.id().startsWith("cosmetica-")) || !TYPES.contains(entry.category()) || !seen.add(entry.id()))continue;
                 // Local entries belong to this private catalog; no fabricated purchase/coin flow.
                 JsonObject owned=el.getAsJsonObject().deepCopy();owned.addProperty("defaultOwned",true);
                 next.add(new Gson().fromJson(owned,CatalogEntry.class));
@@ -152,12 +194,14 @@ public final class KushCatalogProvider implements CosmeticProvider {
         try {
             byte[] bytes;
             if(ref.startsWith("https://")) {
-                String expected=hashes.get(ref);if(expected==null)throw new IOException("Unlisted remote asset");
-                Path disk=root.resolve("cache/"+expected+".png");
+                String expected=hashes.get(ref);boolean cosmetica=cosmeticaFrames.containsKey(ref);
+                if(expected==null && !cosmetica)throw new IOException("Unlisted remote asset");
+                String cacheKey=cosmetica?"cosmetica-"+HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(ref.getBytes(StandardCharsets.UTF_8))):expected;
+                Path disk=root.resolve("cache/"+cacheKey+".png");
                 bytes=Files.exists(disk) && Files.size(disk)<=2*1024*1024?Files.readAllBytes(disk):null;
-                if(bytes==null || !HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected)) {
+                if(bytes==null || (!cosmetica && !HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected))) {
                     bytes=get(ref,2*1024*1024);
-                    if(!HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected))throw new IOException("Texture hash mismatch");
+                    if(!cosmetica && !HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected))throw new IOException("Texture hash mismatch");
                     Files.createDirectories(disk.getParent());Files.write(disk,bytes);
                 }
             }else {
@@ -171,6 +215,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
                     var reader=readers.next();try {
                         reader.setInput(input);int w=reader.getWidth(0),h=reader.getHeight(0);
                         if(!reader.getFormatName().equalsIgnoreCase("PNG") || w<1 || h<1 || w>4096 || h>8192 || (long)w*h>16_777_216)throw new IOException("Texture dimensions");
+                        Integer frames=cosmeticaFrames.get(ref);if(frames!=null && (w%2!=0 || h!=(w/2)*frames))throw new IOException("Cape animation layout");
                     }finally{reader.dispose();}
                 }
             }

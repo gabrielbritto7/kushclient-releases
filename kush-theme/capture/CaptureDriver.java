@@ -23,7 +23,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, VERIFY_PERSISTENCE, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, VERIFY_PERSISTENCE, DONE
     }
     private static State state = State.WAIT_TITLE;
     private static int waitTicks;
@@ -158,7 +158,22 @@ public final class CaptureDriver implements ClientModInitializer {
                     if(cape("forRender")!=null){System.out.println("[KushCapture] real cape equipped locally");waitTicks=80;state=State.CAPTURE_EQUIP;}
                     else if(stableTicks++>600)throw new IllegalStateException("Equipped cape did not resolve");
                 }
-                case CAPTURE_EQUIP -> capture(client,"27-cape-equipped",State.VERIFY_PERSISTENCE);
+                case CAPTURE_EQUIP -> capture(client,"27-cape-equipped",State.TRY_COSMETICA);
+                case TRY_COSMETICA -> {
+                    Object found=null;for(Object entry:catalog())if(entry.getClass().getMethod("id").invoke(entry).toString().equals("cosmetica-cAPe9")){found=entry;break;}
+                    if(found==null)throw new IllegalStateException("Real Cosmetica animated cape missing");
+                    local().getClass().getMethod("togglePreview",found.getClass()).invoke(local(),found);
+                    Field mode=client.screen.getClass().getDeclaredField("mode");mode.setAccessible(true);
+                    mode.set(client.screen,Enum.valueOf((Class)mode.getType(),"DRESS"));stableTicks=0;state=State.WAIT_COSMETICA;
+                }
+                case WAIT_COSMETICA -> {
+                    Object preview=cape("forPreview");
+                    if(preview!=null && preview.getClass().getMethod("id").invoke(preview).equals("cosmetica-cAPe9")){
+                        if(((Number)preview.getClass().getMethod("mspf").invoke(preview)).intValue()!=250)throw new IllegalStateException("Wrong Cosmetica animation speed");
+                        System.out.println("[KushCapture] real Cosmetica animated cape decoded, six frames / 250ms");waitTicks=80;state=State.CAPTURE_COSMETICA;
+                    }else if(stableTicks++>600)throw new IllegalStateException("Cosmetica cape did not resolve");
+                }
+                case CAPTURE_COSMETICA -> capture(client,"28-cosmetica-animated-cape",State.VERIFY_PERSISTENCE);
                 case VERIFY_PERSISTENCE -> {
                     Path dir=client.gameDirectory.toPath().resolve("config/kushmod/cosmetics");
                     try(var files=Files.list(dir)) {
