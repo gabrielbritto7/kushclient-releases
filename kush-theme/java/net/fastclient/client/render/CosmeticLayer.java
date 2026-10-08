@@ -68,10 +68,12 @@ public class CosmeticLayer
 extends class_3887<class_10055, class_591> {
     private boolean slim;
     private static final Map<String,com.google.gson.JsonObject> SOURCE_CACHE=new java.util.LinkedHashMap<>();
-    private static com.google.gson.JsonObject source(String json){
-        com.google.gson.JsonObject cached=SOURCE_CACHE.get(json);if(cached!=null)return cached;
+    private static com.google.gson.JsonObject source(String id,String json){
+        String key=id+"#"+json.hashCode();
+        com.google.gson.JsonObject cached=SOURCE_CACHE.get(key);if(cached!=null)return cached;
         if(SOURCE_CACHE.size()>=64)SOURCE_CACHE.remove(SOURCE_CACHE.keySet().iterator().next());
-        cached=com.google.gson.JsonParser.parseString(json).getAsJsonObject();SOURCE_CACHE.put(json,cached);return cached;
+        com.google.gson.JsonObject root=com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+        cached=root.has("kushCosmetica")?root.getAsJsonObject("kushCosmetica"):new com.google.gson.JsonObject();SOURCE_CACHE.put(key,cached);return cached;
     }
     private static final Logger LOGGER = LoggerFactory.getLogger((String)"fastclientcore");
     private static final AtomicBoolean LOGGED_FIRST_RENDER = new AtomicBoolean(false);
@@ -151,7 +153,7 @@ extends class_3887<class_10055, class_591> {
         vc.method_56824(pose, x, 0.0f, z).method_1336(255, 255, 255, 255).method_22913(u, v).method_22922(class_4608.field_21444).method_60803(light).method_60831(pose, 0.0f, normalY, 0.0f);
     }
 
-    public void submit(class_4587 poseStack, class_11659 collector, int packedLight, class_10055 state, float yRot, float xRot) {
+    public void method_4199(class_4587 poseStack, class_11659 collector, int packedLight, class_10055 state, float yRot, float xRot) {
         Vector3f o;
         if (state.field_53333) {
             return;
@@ -281,9 +283,8 @@ extends class_3887<class_10055, class_591> {
         if (model == null || texture == null || !bone.field_3665) {
             return;
         }
-        com.google.gson.JsonObject source=source(modelJson);
-        com.google.gson.JsonObject meta=source.getAsJsonObject("kushCosmetica");
-        if(meta!=null){
+        com.google.gson.JsonObject meta=source(id,modelJson);
+        if(meta.has("offset")){
             var offset=meta.getAsJsonArray("offset");String attachment=meta.get("attachment").getAsString();
             float dx=attachment.equals("LEFT_ARM")?-1:attachment.equals("RIGHT_ARM")?1:0;
             float dy=attachment.equals("HEAD")?4:attachment.endsWith("ARM")?-6:-8;

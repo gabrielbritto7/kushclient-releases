@@ -23,7 +23,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, CAPTURE_ACCESSORIES_FRONT, VERIFY_PERSISTENCE, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, DONE
     }
     private static State state = State.WAIT_TITLE;
     private static int waitTicks;
@@ -198,11 +198,36 @@ public final class CaptureDriver implements ClientModInitializer {
                     if(ready){System.out.println("[KushCapture] real halo + hat + 4-frame hand flames + 6-frame wings equipped together");waitTicks=120;state=State.CAPTURE_ACCESSORIES;}
                     else if(stableTicks++>600)throw new IllegalStateException("Accessory equip did not resolve");
                 }
-                case CAPTURE_ACCESSORIES -> capture(client,"29-accessories-back",State.CAPTURE_ACCESSORIES_FRONT);
-                case CAPTURE_ACCESSORIES_FRONT -> {
-                    Field yaw=client.screen.getClass().getDeclaredField("previewYaw");yaw.setAccessible(true);yaw.setFloat(client.screen,-25f);
-                    capture(client,"30-accessories-front",State.VERIFY_PERSISTENCE);
+                case CAPTURE_ACCESSORIES -> {
+                    Field field=Class.forName("net.fastclient.client.render.CosmeticTextures").getDeclaredField("ANIMATED");field.setAccessible(true);
+                    java.util.Map<?,?> map=(java.util.Map<?,?>)field.get(null);
+                    for(String[] spec:new String[][]{{"cosmetica-qnifj","4","3"},{"cosmetica-nhpze","6","4"}}){
+                        Object animation=map.entrySet().stream().filter(e->e.getKey().toString().contains(spec[0])).map(java.util.Map.Entry::getValue).findFirst().orElseThrow();
+                        Field frames=animation.getClass().getDeclaredField("frames"),delay=animation.getClass().getDeclaredField("framesPerStep");frames.setAccessible(true);delay.setAccessible(true);
+                        if(frames.getInt(animation)!=Integer.parseInt(spec[1]) || delay.getInt(animation)!=Integer.parseInt(spec[2]))throw new IllegalStateException("Wrong accessory texture animation "+spec[0]);
+                    }
+                    System.out.println("[KushCapture] GPU animations verified: hand 4 frames / 150ms and wings 6 frames / 200ms");
+                    capture(client,"29-accessories-back",State.SET_ACCESSORIES_FRONT);
                 }
+                case SET_ACCESSORIES_FRONT -> {
+                    Field yaw=client.screen.getClass().getDeclaredField("previewYaw");yaw.setAccessible(true);yaw.setFloat(client.screen,-25f);
+                    waitTicks=45;state=State.CAPTURE_ACCESSORIES_FRONT;
+                }
+                case CAPTURE_ACCESSORIES_FRONT -> capture(client,"30-accessories-front",State.REQUEST_PAGE2);
+                case REQUEST_PAGE2 -> {
+                    Method method=client.screen.getClass().getDeclaredMethod("requestPage",int.class);method.setAccessible(true);method.invoke(client.screen,2);stableTicks=0;state=State.WAIT_PAGE2;
+                }
+                case WAIT_PAGE2 -> {
+                    Field loading=client.screen.getClass().getDeclaredField("loadingRemote"),page=client.screen.getClass().getDeclaredField("remotePage");loading.setAccessible(true);page.setAccessible(true);
+                    if(!loading.getBoolean(client.screen)){
+                        if(page.getInt(client.screen)!=2)throw new IllegalStateException("Catalog page two did not load");
+                        Object provider=Class.forName("net.fastclient.core.equip.KushCatalogProvider").getMethod("current").invoke(null);
+                        java.util.Set<?> ids=(java.util.Set<?>)provider.getClass().getMethod("pageIds",String.class,String.class,int.class).invoke(provider,"wings","",2);
+                        if(ids==null || ids.isEmpty() || ids.size()>20)throw new IllegalStateException("Invalid actual remote page");
+                        System.out.println("[KushCapture] native page two searched and loaded "+ids.size()+" actual Cosmetica records");waitTicks=50;state=State.CAPTURE_PAGE2;
+                    }else if(stableTicks++>600)throw new IllegalStateException("Remote pagination stuck");
+                }
+                case CAPTURE_PAGE2 -> capture(client,"31-catalog-page-two",State.VERIFY_PERSISTENCE);
                 case VERIFY_PERSISTENCE -> {
                     Path dir=client.gameDirectory.toPath().resolve("config/kushmod/cosmetics");
                     try(var files=Files.list(dir)) {

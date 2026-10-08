@@ -78,7 +78,6 @@ public final class KushCatalogProvider implements CosmeticProvider {
     private void addCosmetica(List<CatalogEntry> target,JsonObject response) {
         Set<String> seen=new HashSet<>();target.forEach(e->{if(e.id().startsWith("cosmetica-"))seen.add(e.id().substring(10));});
         for(JsonElement element:response.getAsJsonArray("results")) {
-            if(target.size()>=240)break;
             try {
                 JsonObject row=element.getAsJsonObject();
                 if(!"animated_texture_cosmetic".equals(row.get("type").getAsString()))continue;

@@ -271,7 +271,8 @@ extends class_437 {
             if (!status.isEmpty()) {
                 this.drawText(g, status, x + rowW - 6 - this.width(status), ry + 6, active ? (this.mode == Mode.DRESS ? -1890762 : -11751570) : -6052957);
             }
-            this.rowRects.add(new Object[]{x, ry, rowW, 20, e});
+            int hitY=Math.max(y,ry),hitH=Math.max(0,Math.min(y+h,ry+20)-hitY);
+            this.rowRects.add(new Object[]{x, hitY, rowW, hitH, e});
         }
         g.method_44380();
         if (overflow) {
@@ -303,7 +304,7 @@ extends class_437 {
         String category=CATS.get(selected).key(),query=searchText.trim();
         if(!Set.of("cape","hats","face","arm","boots","back","wings").contains(category))return;
         var provider=net.fastclient.core.equip.KushCatalogProvider.current();if(provider==null)return;
-        long generation=remoteGeneration;loadingRemote=true;
+        long generation=remoteGeneration;loadingRemote=true;scroll=0;
         Thread worker=new Thread(()->{try{int pages=provider.search(category,query,page);if(generation==remoteGeneration){remotePages=pages;remotePage=page;remoteError="";}}catch(Exception ex){if(generation==remoteGeneration)remoteError=net.fastclient.hud.gui.KushLanguage.isPortuguese()?"Sem conexão":"Offline";}finally{loadingRemote=false;}},"Kush-Catalog-Search");worker.setDaemon(true);worker.start();
     }
 
