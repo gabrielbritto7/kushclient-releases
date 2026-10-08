@@ -548,5 +548,8 @@
   "Unequip": "Desequipar",
   "Show CPS inside mouse buttons": "Mostrar CPS nos botões do mouse",
   "Show held items": "Mostrar itens nas mãos",
-  "Show durability bars": "Mostrar barras de durabilidade"
+  "Show durability bars": "Mostrar barras de durabilidade",
+  "Show CPS": "Mostrar CPS",
+  "Show Held": "Mostrar itens nas mãos",
+  "Show Bars": "Mostrar barras"
 }

@@ -23,7 +23,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, PRESS_INPUT, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, DONE
     }
     private static final boolean ACCESSORIES_ONLY="1".equals(System.getenv("KUSH_CAPTURE_ACCESSORIES_ONLY"));
     private static State state = State.WAIT_TITLE;
@@ -147,12 +147,14 @@ public final class CaptureDriver implements ClientModInitializer {
                     open(client,"net.fastclient.hud.gui.screens.HudOverlayScreen");waitTicks=50;state=State.CAPTURE_WORLD_OVERLAY;}
                 case CAPTURE_WORLD_OVERLAY -> capture(client,"13-right-shift-in-game",State.OPEN_WORLD_CONFIG);
                 case OPEN_WORLD_CONFIG -> {openKeystrokesConfig(client);waitTicks=50;state=State.CAPTURE_WORLD_CONFIG;}
-                case CAPTURE_WORLD_CONFIG -> capture(client,"14-glass-in-game",State.OPEN_ARMOR_CONFIG);
+                case CAPTURE_WORLD_CONFIG -> capture(client,"14-glass-in-game",State.SCROLL_KEYSTROKES);
+                case SCROLL_KEYSTROKES -> {scrollConfigToBottom(client);waitTicks=50;state=State.CAPTURE_KEYSTROKES_MORE;}
+                case CAPTURE_KEYSTROKES_MORE -> capture(client,"33-keystrokes-cps-settings",State.OPEN_ARMOR_CONFIG);
                 case OPEN_ARMOR_CONFIG -> {
                     Object armor=((java.util.List<?>)manager().getClass().getMethod("getModules").invoke(manager())).stream().filter(e->e.getClass().getSimpleName().equals("ArmorHUD")).findFirst().orElseThrow();
                     Class<?> screen=Class.forName("net.fastclient.hud.gui.screens.ModuleConfigScreen");
                     client.setScreen((Screen)screen.getConstructor(Class.forName("net.fastclient.hud.modules.Module"),Screen.class).newInstance(armor,client.screen));
-                    waitTicks=50;state=State.CAPTURE_ARMOR_CONFIG;
+                    scrollConfigToBottom(client);waitTicks=50;state=State.CAPTURE_ARMOR_CONFIG;
                 }
                 case CAPTURE_ARMOR_CONFIG -> capture(client,"32-armorstatus-settings",State.OPEN_PAUSE);
                 case OPEN_PAUSE -> {client.setScreen(new net.minecraft.client.gui.screens.PauseScreen(true));waitTicks=50;state=State.CAPTURE_PAUSE;}
@@ -397,6 +399,11 @@ public final class CaptureDriver implements ClientModInitializer {
         }
         m.getClass().getMethod("saveConfig").invoke(m);
         System.out.println("[KushCapture] Verified modules="+count+" and enabled FPS/Coordinates/Keystrokes");
+    }
+    private static void scrollConfigToBottom(Minecraft client)throws Exception {
+        Class<?> type=client.screen.getClass();Field max=type.getDeclaredField("maxScroll"),target=type.getDeclaredField("targetScrollOffset");max.setAccessible(true);target.setAccessible(true);target.setDouble(client.screen,max.getDouble(client.screen));
+        Class<?> language=Class.forName("net.fastclient.hud.gui.KushLanguage");
+        for(String label:new String[]{"Show CPS","Show Held","Show Bars"})if(language.getMethod("translate",String.class).invoke(null,label).equals(label))throw new IllegalStateException("New HUD title has no PT translation: "+label);
     }
     private static void equipTestArmor(Minecraft client) {
         var slots=new net.minecraft.world.entity.EquipmentSlot[]{net.minecraft.world.entity.EquipmentSlot.HEAD,net.minecraft.world.entity.EquipmentSlot.CHEST,net.minecraft.world.entity.EquipmentSlot.LEGS,net.minecraft.world.entity.EquipmentSlot.FEET,net.minecraft.world.entity.EquipmentSlot.MAINHAND};
