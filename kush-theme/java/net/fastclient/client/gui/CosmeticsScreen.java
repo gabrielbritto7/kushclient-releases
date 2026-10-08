@@ -294,7 +294,8 @@ extends class_437 {
             Set<String> pageIds=provider==null?null:provider.pageIds(cat.key(),searchText,remotePage);
             if(e.id().startsWith("cosmetica-") && pageIds!=null && !pageIds.contains(e.id()))continue;
             boolean bl = isOwned = e.defaultOwned() || owned.contains(e.id());
-            if (this.mode == Mode.WARDROBE && !isOwned || !q.isEmpty() && !e.label().toLowerCase(Locale.ROOT).contains(q) && !e.id().toLowerCase(Locale.ROOT).contains(q)) continue;
+            boolean serverMatch=e.id().startsWith("cosmetica-") && pageIds!=null;
+            if (this.mode == Mode.WARDROBE && !isOwned || !serverMatch && !q.isEmpty() && !e.label().toLowerCase(Locale.ROOT).contains(q) && !e.id().toLowerCase(Locale.ROOT).contains(q)) continue;
             out.add(new Entry(e, isOwned));
         }
         return out;
