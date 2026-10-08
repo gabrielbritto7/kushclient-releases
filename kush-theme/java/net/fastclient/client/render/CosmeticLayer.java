@@ -67,6 +67,7 @@ import org.slf4j.LoggerFactory;
 public class CosmeticLayer
 extends class_3887<class_10055, class_591> {
     private boolean slim;
+    private int hiddenMask;
     private static final Map<String,com.google.gson.JsonObject> SOURCE_CACHE=new java.util.LinkedHashMap<>();
     private static com.google.gson.JsonObject source(String id,String json){
         String key=id+"#"+json.hashCode();
@@ -163,6 +164,8 @@ extends class_3887<class_10055, class_591> {
             return;
         }
         slim=state.field_53520!=null && state.field_53520.comp_1629()==net.minecraft.class_7920.field_41122;
+        boolean elytra=state.field_53418.method_31574(net.minecraft.class_1802.field_8833);
+        hiddenMask=(!state.field_55309.method_7960()?1:0)|(!state.field_53418.method_7960() && !elytra?2:0)|(!state.field_53419.method_7960()?4:0)|(!state.field_53420.method_7960()?8:0)|((cosmetics.cape()!=null || state.field_53520.comp_1627()!=null)?16:0)|(elytra?32:0)|((state.field_53526!=null || state.field_53527!=null)?64:0);
         class_591 model = (class_591)this.method_17165();
         float age = state.field_53328;
         int hatIndex = 0;
@@ -285,6 +288,7 @@ extends class_3887<class_10055, class_591> {
         }
         com.google.gson.JsonObject meta=source(id,modelJson);
         if(meta.has("offset")){
+            if(meta.has("flags") && (meta.get("flags").getAsInt() & hiddenMask)!=0)return;
             var offset=meta.getAsJsonArray("offset");String attachment=meta.get("attachment").getAsString();
             float dx=attachment.equals("LEFT_ARM")?-1:attachment.equals("RIGHT_ARM")?1:0;
             float dy=attachment.equals("HEAD")?4:attachment.endsWith("ARM")?-6:-8;

@@ -23,12 +23,14 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, DONE
     }
     private static State state = State.WAIT_TITLE;
     private static int waitTicks;
     private static int stableTicks;
     private static boolean capturing;
+    private static volatile boolean cacheVerified;
+    private static volatile Throwable cacheFailure;
 
     public void onInitializeClient() {
         String loaded = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("fastclient-hud")
@@ -239,8 +241,19 @@ public final class CaptureDriver implements ClientModInitializer {
                     if(cape("forRender")==null)throw new IllegalStateException("Equipped cape lost on screen close");
                     String saved=Files.readString(client.gameDirectory.toPath().resolve("config/kushmod/language.txt"));
                     if(!saved.equals("pt_br"))throw new IllegalStateException("Language preference not persisted");
-                    System.out.println("[KushCapture] verified loadout persistence, preview cleanup and PT/EN preference");state=State.DONE;
+                    System.out.println("[KushCapture] verified loadout persistence, preview cleanup and PT/EN preference");
+                    Thread worker=new Thread(()->{try {
+                        Class<?> type=Class.forName("net.fastclient.core.equip.KushCatalogProvider");
+                        Object restored=type.getConstructor(Path.class,java.util.UUID.class).newInstance(dir,client.getUser().getProfileId());
+                        long start=System.nanoTime();java.util.List<?> entries=(java.util.List<?>)type.getMethod("catalog").invoke(restored);
+                        if(entries.isEmpty() || System.nanoTime()-start>2_000_000_000L)throw new IllegalStateException("Cached catalog delayed by network");
+                        Object look=type.getMethod("fetch",java.util.UUID.class,String.class).invoke(restored,client.getUser().getProfileId(),client.getUser().getName());
+                        for(String slot:new String[]{"hats","face","arm","wings"})if(((java.util.List<?>)look.getClass().getMethod(slot).invoke(look)).size()!=1)throw new IllegalStateException("Cached restart lost "+slot);
+                        if(look.getClass().getMethod("cape").invoke(look)==null)throw new IllegalStateException("Cached restart lost cape");
+                        System.out.println("[KushCapture] fresh provider restored cape, halo, hat, arm and wings from disk cache");cacheVerified=true;
+                    }catch(Throwable failure){cacheFailure=failure;}},"Kush-Cached-Restart-Test");worker.setDaemon(true);worker.start();stableTicks=0;state=State.VERIFY_CACHED_RESTART;
                 }
+                case VERIFY_CACHED_RESTART -> {if(cacheFailure!=null)throw new IllegalStateException("Cached restart failed",cacheFailure);if(cacheVerified)state=State.DONE;else if(stableTicks++>600)throw new IllegalStateException("Cached restore timed out");}
                 case DONE -> { System.out.println("[KushCapture] complete"); Thread.sleep(500); System.exit(0); }
             }
         } catch (Throwable t) { t.printStackTrace(); System.err.println("[KushCapture] failed state="+state); System.exit(2); }

@@ -39,6 +39,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
     private volatile PlayerCosmetics snapshot=PlayerCosmetics.emptyInstance();
     private volatile boolean resolved;
     private volatile boolean catalogReady;
+    private volatile long lastCatalogAt;
     public KushCatalogProvider(Path root,UUID owner) {
         this.root=root.toAbsolutePath().normalize();this.owner=owner;current=this;
         try {
@@ -52,6 +53,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
                 selected=Set.copyOf(ids);
             }
         }catch(Exception e){org.slf4j.LoggerFactory.getLogger("Kush").warn("Could not open cosmetic preferences",e);}
+        warmCache();
     }
     private Path loadout(){return root.resolve("loadout-"+owner+".json");}
     public static String site(){return SITE;}
@@ -115,6 +117,42 @@ public final class KushCatalogProvider implements CosmeticProvider {
         }
     }
 
+
+    private void loadLocal(List<CatalogEntry> target) {
+        try {
+            Path file=root.resolve("catalog.json");if(Files.size(file)>1024*1024)throw new IOException("Local catalog size limit");
+            JsonObject obj=JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+            if(obj.get("schema").getAsInt()!=1)throw new IOException("Unsupported local catalog schema");
+            Set<String> seen=new HashSet<>();
+            for(JsonElement el:obj.getAsJsonArray("items")) {
+                if(seen.size()>=400)break;
+                CatalogEntry entry=new Gson().fromJson(el,CatalogEntry.class);
+                if(entry.id()==null || !entry.id().matches("[a-zA-Z0-9_-]{1,80}") || (entry.id().startsWith("kush-site-") || entry.id().startsWith("cosmetica-")) || !TYPES.contains(entry.category()) || !seen.add(entry.id()))continue;
+                // Local entries belong to this private catalog; no fabricated purchase/coin flow.
+                JsonObject owned=el.getAsJsonObject().deepCopy();owned.addProperty("defaultOwned",true);
+                target.add(new Gson().fromJson(owned,CatalogEntry.class));
+            }
+        }catch(Exception e){org.slf4j.LoggerFactory.getLogger("Kush").warn("Invalid local cosmetics catalog",e);}
+    }
+    private void warmCache() {
+        List<CatalogEntry> next=new ArrayList<>();
+        for(int page=1;page<=25;page++)try {
+            Path file=root.resolve("site-catalog-"+page+".json");if(!Files.exists(file))break;if(Files.size(file)>1024*1024)continue;
+            JsonObject obj=JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+            for(JsonElement element:obj.getAsJsonArray("items")){
+                JsonObject item=element.getAsJsonObject();String id=UUID.fromString(item.get("id").getAsString()).toString(),hash=item.get("sha256").getAsString();if(!hash.matches("[a-f0-9]{64}"))continue;
+                String ref=SITE+"/api/kush?resource=texture&id="+id;hashes.put(ref,hash);next.add(cape("kush-site-"+id,item.get("name").getAsString(),ref));
+            }
+        }catch(Exception ignored){}
+        try{Path file=root.resolve("cosmetica-catalog.json");if(Files.exists(file) && Files.size(file)<1024*1024)addCosmetica(next,JsonParser.parseString(Files.readString(file)).getAsJsonObject());}catch(Exception ignored){}
+        loadAccessoryCache(next);loadLocal(next);
+        if(!next.isEmpty()){entries=List.copyOf(next);catalogReady=true;lastCatalogAt=System.currentTimeMillis();}
+    }
+    private void loadAccessoryCache(List<CatalogEntry> target) {
+        Path file=root.resolve("cosmetica-accessories.json");
+        try{if(Files.exists(file) && Files.size(file)<16*1024*1024){int n=0;for(JsonElement e:JsonParser.parseString(Files.readString(file)).getAsJsonArray()){JsonObject o=e.getAsJsonObject();pages.put(o.has("_kushPageKey")?o.get("_kushPageKey").getAsString():"cached-"+n++,o);addAccessories(target,o);addCosmetica(target,o);}}}catch(Exception ignored){}
+    }
+
     private static boolean cdn(String ref,String extension) {
         try{URI u=URI.create(ref);return "https".equals(u.getScheme()) && "cdn.cosmetica.cc".equals(u.getHost()) && u.getPort()==-1 && u.getUserInfo()==null && u.getQuery()==null && u.getFragment()==null && u.getPath().matches("/assets/[a-f0-9]{3}/[a-f0-9-]{36}\\."+extension);}catch(Exception e){return false;}
     }
@@ -133,7 +171,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
             String category=switch(attach){case HEAD->lower.contains("halo")?"face":"hats";case BODY->lower.contains("wing")?"wings":"back";case LEFT_ARM,RIGHT_ARM->"arm";case LEFT_LEG,RIGHT_LEG,BOTH_LEGS->"boots";};
             JsonArray offset=a.getAsJsonArray("offset");if(offset==null || offset.size()!=6)continue;
             for(JsonElement value:offset)if(!Double.isFinite(value.getAsDouble()) || Math.abs(value.getAsDouble())>128)throw new IllegalArgumentException();
-            JsonObject metadata=new JsonObject();metadata.add("offset",offset.deepCopy());metadata.addProperty("attachment",attach.name());
+            JsonObject metadata=new JsonObject();metadata.add("offset",offset.deepCopy());metadata.addProperty("attachment",attach.name());metadata.addProperty("flags",a.get("flags").getAsInt());
             models.put(model,metadata);accessoryTextures.add(texture);
             animations.put("cosmetica-"+id,new int[]{frames,a.get("frames").getAsInt()>0?ticks*50:0});
             if(seen.add("cosmetica-"+id))target.add(new CatalogEntry("cosmetica-"+id,"[Cosmetica] "+name,category,true,attach,1|4|8,model,texture,null,null,"none",null,null,null,null,null,null,null,null,null,null));
@@ -147,8 +185,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
     }
     private void savePages()throws IOException {JsonArray a=new JsonArray();pages.forEach((key,value)->{JsonObject copy=value.deepCopy();copy.addProperty("_kushPageKey",key);a.add(copy);});atomic(root.resolve("cosmetica-accessories.json"),a.toString());}
     private void loadAccessories(List<CatalogEntry> target) {
-        Path file=root.resolve("cosmetica-accessories.json");
-        try{if(Files.exists(file) && Files.size(file)<16*1024*1024){int n=0;for(JsonElement e:JsonParser.parseString(Files.readString(file)).getAsJsonArray()){JsonObject o=e.getAsJsonObject();pages.put(o.has("_kushPageKey")?o.get("_kushPageKey").getAsString():"cached-"+n++,o);addAccessories(target,o);addCosmetica(target,o);}}}catch(Exception ignored){}
+        loadAccessoryCache(target);
         for(String[] spec:new String[][]{{"","head"},{"","body"},{"","arm"},{"","leg"},{"wings","body"},{"halo","head"}})try {
             JsonObject result=accessoryPage(spec[0],spec[1],1);pages.put(spec[0]+":"+spec[1]+":1",result);addAccessories(target,result);
         }catch(Exception e){org.slf4j.LoggerFactory.getLogger("Kush").debug("Accessory catalog unavailable; using cache");}
@@ -169,6 +206,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
     }
 
     @Override public synchronized List<CatalogEntry> catalog() {
+        if(catalogReady && System.currentTimeMillis()-lastCatalogAt<300000)return entries;
         List<CatalogEntry> next=new ArrayList<>();boolean remoteOk=false;
         try {
             int total=1;
@@ -204,21 +242,8 @@ public final class KushCatalogProvider implements CosmeticProvider {
         }
         loadCosmetica(next);
         loadAccessories(next);
-        try {
-            Path file=root.resolve("catalog.json");if(Files.size(file)>1024*1024)throw new IOException("Local catalog size limit");
-            JsonObject obj=JsonParser.parseString(Files.readString(file)).getAsJsonObject();
-            if(obj.get("schema").getAsInt()!=1)throw new IOException("Unsupported local catalog schema");
-            Set<String> seen=new HashSet<>();
-            for(JsonElement el:obj.getAsJsonArray("items")) {
-                if(next.size()>=600)break;
-                CatalogEntry entry=new Gson().fromJson(el,CatalogEntry.class);
-                if(entry.id()==null || !entry.id().matches("[a-zA-Z0-9_-]{1,80}") || (entry.id().startsWith("kush-site-") || entry.id().startsWith("cosmetica-")) || !TYPES.contains(entry.category()) || !seen.add(entry.id()))continue;
-                // Local entries belong to this private catalog; no fabricated purchase/coin flow.
-                JsonObject owned=el.getAsJsonObject().deepCopy();owned.addProperty("defaultOwned",true);
-                next.add(new Gson().fromJson(owned,CatalogEntry.class));
-            }
-        }catch(Exception e){org.slf4j.LoggerFactory.getLogger("Kush").warn("Invalid local cosmetics catalog",e);}
-        entries=List.copyOf(next);resolved=false;catalogReady=true;
+        loadLocal(next);
+        entries=List.copyOf(next);resolved=false;catalogReady=true;lastCatalogAt=System.currentTimeMillis();
         return !remoteOk && entries.isEmpty()?null:entries;
     }
     @Override public boolean canEquipOwn(){return true;}
