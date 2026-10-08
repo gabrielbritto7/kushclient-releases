@@ -4,6 +4,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.fastclient.hud.modules.impl.render.CapePhysics;
 import net.minecraft.*;
 import java.lang.reflect.Method;
+import java.lang.reflect.Constructor;
+import java.util.WeakHashMap;
 
 /** Optional adapter to the installed, official Wavey Capes. No Wavey code or JAR is bundled. */
 public final class KushWaveyBridge {
@@ -11,9 +13,32 @@ public final class KushWaveyBridge {
     private static Method settingsFactory,layerGetter;
     private static Object wavey;
     private static boolean warned;
+    private static Method previewUpdate,previewSimulate,previewGravity;
+    private static Constructor<?> previewDelegate;
+    private static final WeakHashMap<class_11890,Integer> PREVIEW_TICKS=new WeakHashMap<>();
     public static int submittedFrames,texturedFrames;
     private KushWaveyBridge() {}
     public static boolean installed(){return PRESENT;}
+    /** Catalog avatars do not receive world ticks; advance Wavey's own solver at 20 Hz. */
+    public static void previewTick(class_11890 player){
+        CapePhysics config=CapePhysics.current();
+        if(!PRESENT || config==null || !config.isEnabled() || !config.useWavey() || !config.preview())return;
+        Integer previous=PREVIEW_TICKS.get(player);
+        if(previous!=null && previous==player.field_6012)return;
+        try {
+            if(previewUpdate==null){
+                Class<?> holder=Class.forName("dev.tr7zw.waveycapes.versionless.CapeHolder");
+                previewUpdate=holder.getMethod("updateSimulation",int.class);
+                previewSimulate=holder.getMethod("simulate",Class.forName("dev.tr7zw.waveycapes.versionless.nms.MinecraftPlayer"));
+                previewGravity=holder.getMethod("setGravityVectorRequest",boolean.class);
+                previewDelegate=Class.forName("dev.tr7zw.waveycapes.delegate.PlayerDelegate").getConstructor(class_11890.class);
+            }
+            previewUpdate.invoke(player,16);previewGravity.invoke(player,true);
+            Object delegate=previewDelegate.newInstance(player);
+            for(int i=0;i<(previous==null?6:1);i++)previewSimulate.invoke(player,delegate);
+            PREVIEW_TICKS.put(player,player.field_6012);
+        }catch(ReflectiveOperationException error){warn(error);}
+    }
     public static boolean active(class_10055 state){
         CapePhysics config=CapePhysics.current();
         return PRESENT && config!=null && config.isEnabled() && config.useWavey()

@@ -15,6 +15,7 @@ public final class KushCapeRenderer {
     public static boolean isPreview(class_10055 state){Motion m=MOTION.get(state.field_53528);return m!=null&&m.preview;}
     public static void note(class_11890 entity,class_10055 state){
         Motion m=MOTION.computeIfAbsent(state.field_53528,id->new Motion());m.preview=entity instanceof CosmeticPreviewPlayer;
+        if(m.preview)KushWaveyBridge.previewTick(entity);
         while(MOTION.size()>128)MOTION.remove(MOTION.keySet().iterator().next());
     }
     public static boolean render(class_4587 stack,class_11659 queue,int light,class_10055 state){

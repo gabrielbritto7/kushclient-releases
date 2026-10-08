@@ -386,7 +386,11 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case STOP_WORLD_CAPE -> {client.options.keyUp.setDown(false);waitTicks=80;state=State.CAPTURE_WORLD_CAPE_STILL;}
                 case CAPTURE_WORLD_CAPE_STILL -> capture(client,WAVEY_ONLY?"53-wavey-idle-in-game":"41-cape-idle-in-game",WAVEY_ONLY?State.WAVEY_DISABLE:State.DONE);
-                case CAPTURE_WAVEY_PREVIEW -> capture(client,"49-wavey-equipped-preview",State.WAVEY_SETUP);
+                case CAPTURE_WAVEY_PREVIEW -> {
+                    Field preview=client.screen.getClass().getDeclaredField("previewPlayer");preview.setAccessible(true);Object player=preview.get(client.screen);
+                    if(player==null || Class.forName("dev.tr7zw.waveycapes.versionless.CapeHolder").getMethod("getSimulation").invoke(player)==null)throw new IllegalStateException("Wavey catalog preview simulation missing");
+                    capture(client,"49-wavey-equipped-preview",State.WAVEY_SETUP);
+                }
                 case WAVEY_SETUP -> {
                     Class<?> bridge=Class.forName("net.fastclient.client.render.KushWaveyBridge");
                     if(!(boolean)bridge.getMethod("installed").invoke(null))throw new IllegalStateException("Wavey official missing");
@@ -402,10 +406,11 @@ public final class CaptureDriver implements ClientModInitializer {
                     client.screen.mouseClicked(new net.minecraft.client.input.MouseButtonEvent((x+12)*client.getWindow().getGuiScaledWidth()/(double)(int)Class.forName("net.fastclient.hud.gui.DisplaySpace").getMethod("width").invoke(null),(y+12)*client.getWindow().getGuiScaledHeight()/(double)(int)Class.forName("net.fastclient.hud.gui.DisplaySpace").getMethod("height").invoke(null),new net.minecraft.client.input.MouseButtonInfo(0,0)),false);
                     if(client.screen==waveyParent)throw new IllegalStateException("Native settings button did not open Wavey");
                     System.out.println("[KushCapture] Wavey original settings opened by native Kush button: "+client.screen.getClass().getName());
-                    org.lwjgl.glfw.GLFW.glfwSetCursorPos(client.getWindow().handle(),10,10);
+                    cursor(client,10,10);
+                    for(String axis:new String[]{"xpos","ypos"}){Field position=client.mouseHandler.getClass().getDeclaredField(axis);position.setAccessible(true);position.setDouble(client.mouseHandler,10);}
                     waitTicks=45;state=State.CAPTURE_WAVEY_NATIVE;
                 }
-                case CAPTURE_WAVEY_NATIVE -> capture(client,"51-wavey-official-settings",State.WAVEY_SCROLL_NATIVE);
+                case CAPTURE_WAVEY_NATIVE -> capture(client,"51-wavey-official-settings",State.WAVEY_RETURN_WORLD);
                 case WAVEY_SCROLL_NATIVE -> {client.screen.mouseScrolled(client.getWindow().getGuiScaledWidth()/2.0,client.getWindow().getGuiScaledHeight()/2.0,0,-5);waitTicks=30;state=State.CAPTURE_WAVEY_NATIVE_MORE;}
                 case CAPTURE_WAVEY_NATIVE_MORE -> capture(client,"51b-wavey-official-settings-more",State.WAVEY_RETURN_WORLD);
                 case WAVEY_RETURN_WORLD -> {client.setScreen(null);state=State.OPEN_WORLD_CAPE;}

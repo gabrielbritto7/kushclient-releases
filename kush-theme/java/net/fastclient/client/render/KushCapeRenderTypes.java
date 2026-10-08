@@ -17,6 +17,7 @@ public final class KushCapeRenderTypes {
             .withVertexShader(eyes.getVertexShader()).withFragmentShader(eyes.getFragmentShader())
             .withVertexFormat(eyes.getVertexFormat(),eyes.getVertexFormatMode())
             .withShaderDefine("EMISSIVE").withShaderDefine("NO_OVERLAY").withShaderDefine("NO_CARDINAL_LIGHTING")
+            .withShaderDefine("ALPHA_CUTOUT",0.001f)
             .withBlend(BlendFunction.TRANSLUCENT).withCull(false).withDepthWrite(true);
         for(var uniform:eyes.getUniforms())builder.withUniform(uniform.name(),uniform.type());
         for(String sampler:eyes.getSamplers())builder.withSampler(sampler);
