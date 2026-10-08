@@ -25,6 +25,8 @@ public final class KushAssets {
     private static final class_2960 LABEL_K = texture("k_white_label_runtime");
     private static final class_2960 PIXEL_RED_LABEL = texture("k_pixel_red_label_runtime");
     private static final class_2960 PIXEL_GRAY_LABEL = texture("k_pixel_gray_label_runtime");
+    private static final class_2960 MENU_K = texture("k_menu_white.png");
+    private static final class_2960 MENU_K_LABEL = texture("k_menu_white_label_runtime");
     private static final class_2960 BACKGROUND = texture("menu-landscape.png");
     private static final Map<class_2960, BufferedImage> SOURCES = new HashMap<>();
     private static final Map<String, class_2960> SCALED = new LinkedHashMap<>(32, .75f, true);
@@ -87,6 +89,10 @@ public final class KushAssets {
             image(g, hovered ? PIXEL_RED_K : PIXEL_GRAY_K, x, top, capHeight, capHeight, 1254, 1254, -1);
         }
     }
+    public static void menuK(class_332 g,int x,int y,int w,int h) {
+        try {BufferedImage glyph=source(MENU_K_LABEL);image(g,MENU_K_LABEL,x,y,w,h,glyph.getWidth(),glyph.getHeight(),-1);}
+        catch(Exception unavailable){image(g,MENU_K,x,y,w,h,1254,1254,-1);}
+    }
     public static void symbol(class_332 g, String name, int x, int y, int size, int color) {
         int pw = physicalWidth(size), ph = physicalHeight(size);
         String key = "symbol/" + name + "@" + pw + "x" + ph;
@@ -118,14 +124,14 @@ public final class KushAssets {
     private static BufferedImage source(class_2960 id) throws Exception {
         BufferedImage source = SOURCES.get(id);
         if (source != null) return source;
-        class_2960 resource = id.equals(LABEL_K) || id.equals(PIXEL_GRAY_LABEL) ? PIXEL_GRAY_K
+        class_2960 resource = id.equals(MENU_K_LABEL) ? MENU_K : id.equals(LABEL_K) || id.equals(PIXEL_GRAY_LABEL) ? PIXEL_GRAY_K
             : id.equals(PIXEL_RED_LABEL) ? PIXEL_RED_K : id;
         try (InputStream stream = KushAssets.class.getResourceAsStream("/assets/" + resource.method_12836() + "/" + resource.method_12832())) {
             if (stream == null) throw new IllegalArgumentException("Missing original PNG " + resource);
             source = ImageIO.read(stream);
         }
         if (source == null) throw new IllegalArgumentException("Invalid original PNG " + resource);
-        if (id.equals(LABEL_K) || id.equals(PIXEL_RED_LABEL) || id.equals(PIXEL_GRAY_LABEL))
+        if (id.equals(MENU_K_LABEL) || id.equals(LABEL_K) || id.equals(PIXEL_RED_LABEL) || id.equals(PIXEL_GRAY_LABEL))
             source = KushImageResampler.trimAlpha(source);
         if (id.equals(BACKGROUND)) {
             // Prepare once, before resize/cache. Logos and world rendering stay colored.

@@ -12,12 +12,14 @@ public final class KushCapeRenderer {
     private static final Map<Integer,Motion> MOTION=new LinkedHashMap<>(32,.75f,true);
     private static final class Motion {KushCapeSimulation solver;int segments;boolean preview;double age=-1,x,y,z,yaw;float[] points;}
     private KushCapeRenderer() {}
+    public static boolean isPreview(class_10055 state){Motion m=MOTION.get(state.field_53528);return m!=null&&m.preview;}
     public static void note(class_11890 entity,class_10055 state){
         Motion m=MOTION.computeIfAbsent(state.field_53528,id->new Motion());m.preview=entity instanceof CosmeticPreviewPlayer;
         while(MOTION.size()>128)MOTION.remove(MOTION.keySet().iterator().next());
     }
     public static boolean render(class_4587 stack,class_11659 queue,int light,class_10055 state){
         CapePhysics config=CapePhysics.current();
+        if(KushWaveyBridge.active(state))return false;
         if(config==null || !config.isEnabled() || state.field_53333 || !state.field_53532 || state.field_53520==null || state.field_53520.comp_1627()==null || state.field_53411 || state.field_53412 || state.field_53418.method_31574(class_1802.field_8833))return false;
         Motion m=MOTION.computeIfAbsent(state.field_53528,id->new Motion());
         if(m.preview && !config.preview())return false;
@@ -34,7 +36,8 @@ public final class KushCapeRenderer {
         stack.method_22903();
         stack.method_46416(0,state.field_53410?.15f:0,!state.field_53418.method_7960()?.22f:.14f);
         if(state.field_53410)stack.method_22907(new org.joml.Quaternionf().rotationX(.35f));
-        queue.method_73529(0).method_73483(stack,class_12249.method_76000(texture),(pose,vc)->mesh(vc,pose,light,points));
+        final boolean bright=config.preserveBrightness();
+        queue.method_73529(0).method_73483(stack,bright?class_12249.method_75984(texture,false):class_12249.method_76000(texture),(pose,vc)->mesh(vc,pose,light,points));
         stack.method_22909();return true;
     }
     private static void vertex(class_4588 vc,class_4587.class_4665 pose,int light,float x,float y,float z,float u,float v,float nx,float ny,float nz){vc.method_56824(pose,x,y,z).method_1336(255,255,255,255).method_22913(u,v).method_22922(class_4608.field_21444).method_60803(light).method_60831(pose,nx,ny,nz);}

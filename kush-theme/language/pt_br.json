@@ -570,5 +570,14 @@
   "Rgb Border": "Borda RGB",
   "Rgb Period": "Ciclo RGB",
   "Animated RGB border": "Borda RGB animada",
-  "Seconds per RGB cycle": "Segundos por ciclo RGB"
+  "Seconds per RGB cycle": "Segundos por ciclo RGB",
+  "Use Wavey": "Usar Wavey",
+  "use_wavey": "Usar Wavey Capes oficial",
+  "Use the official Wavey Capes physics": "Usar a física do Wavey Capes oficial",
+  "preserve_brightness": "Preservar brilho da textura",
+  "Preserve Brightness": "Preservar brilho da textura",
+  "Keep the cape texture bright while moving": "Evita escurecer a textura quando a capa se movimenta",
+  "The installed Wavey Capes handles movement. Open its original settings here.": "O Wavey Capes instalado controla o movimento. Configure aqui.",
+  "Open official settings": "Configurações oficiais",
+  "Use Wavey Capes": "Usar Wavey Capes oficial"
 }

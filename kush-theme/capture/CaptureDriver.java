@@ -23,9 +23,11 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, PRESS_INPUT, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, OPEN_CPS_RGB, CAPTURE_CPS_RGB, OPEN_KEYS_RGB, CAPTURE_KEYS_RGB, OPEN_PHYSICS, CAPTURE_PHYSICS, SCROLL_PHYSICS, CAPTURE_PHYSICS_MORE, SET_PHYSICS_EN, CAPTURE_PHYSICS_EN, PREPARE_CLOTH, WAIT_CLOTH, CLOTH_FRAMES, PHYSICS_OFF, CAPTURE_PHYSICS_OFF, OPEN_WORLD_CAPE, CAPTURE_WORLD_CAPE, STOP_WORLD_CAPE, CAPTURE_WORLD_CAPE_STILL, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, OPEN_CPS_RGB, CAPTURE_CPS_RGB, OPEN_KEYS_RGB, CAPTURE_KEYS_RGB, OPEN_PHYSICS, CAPTURE_PHYSICS, SCROLL_PHYSICS, CAPTURE_PHYSICS_MORE, SET_PHYSICS_EN, CAPTURE_PHYSICS_EN, PREPARE_CLOTH, WAIT_CLOTH, CLOTH_FRAMES, PHYSICS_OFF, CAPTURE_PHYSICS_OFF, OPEN_WORLD_CAPE, CAPTURE_WORLD_CAPE, STOP_WORLD_CAPE, CAPTURE_WORLD_CAPE_STILL, WAVEY_SETUP, CAPTURE_WAVEY_SETUP, OPEN_WAVEY_NATIVE, CAPTURE_WAVEY_NATIVE, WAVEY_RETURN_WORLD, WAVEY_DISABLE, CAPTURE_WAVEY_DISABLED, WAVEY_PAUSE, CAPTURE_WAVEY_PAUSE, DONE
     }
     private static final boolean ACCESSORIES_ONLY="1".equals(System.getenv("KUSH_CAPTURE_ACCESSORIES_ONLY"));
+    private static final boolean WAVEY_ONLY="1".equals(System.getenv("KUSH_CAPTURE_WAVEY"));
+    private static Screen waveyParent;
     private static State state = State.WAIT_TITLE;
     private static int waitTicks;
     private static int stableTicks;
@@ -38,7 +40,7 @@ public final class CaptureDriver implements ClientModInitializer {
     public void onInitializeClient() {
         String loaded = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("fastclient-hud")
             .orElseThrow().getMetadata().getVersion().getFriendlyString();
-        if (!loaded.equals("1.0.72+kush.0.3.9")) throw new IllegalStateException("Wrong test JAR: " + loaded);
+        if (!loaded.equals("1.0.72+kush.0.3.10")) throw new IllegalStateException("Wrong test JAR: " + loaded);
         System.out.println("[KushCapture] loaded KushMod=" + loaded);
         ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
         System.out.println("[KushCapture] initialized");
@@ -186,7 +188,7 @@ public final class CaptureDriver implements ClientModInitializer {
                     Object cardPreview=ready.get(own.getClass().getMethod("id").invoke(own));if(cardPreview==null || (int)cardPreview.getClass().getMethod("frames").invoke(cardPreview)!=12)throw new IllegalStateException("Own cape has no animated 3D card");
                     System.out.println("[KushCapture] 12-frame real UV cape card animation ready");
                     System.out.println("[KushCapture] real catalog previews decoded="+ready.size()+"; visible square cards="+cards.size());
-                    capture(client,"25-kush-catalog",State.TRY_CAPE);
+                    capture(client,"25-kush-catalog",WAVEY_ONLY?State.PREPARE_CLOTH:State.TRY_CAPE);
                 }
                 case TRY_CAPE -> {Object entry=catalog().get(0);
                     Field rows=client.screen.getClass().getDeclaredField("rowRects");rows.setAccessible(true);Object[] card=(Object[])((java.util.List<?>)rows.get(client.screen)).get(0);
@@ -340,7 +342,7 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case WAIT_CLOTH -> {
                     if(cape("forRender")==null){if(stableTicks++>500)throw new IllegalStateException("Own cape missing");return;}
-                    waitTicks=35;clothFrame=0;state=State.CLOTH_FRAMES;
+                    waitTicks=35;clothFrame=0;state=WAVEY_ONLY?State.WAVEY_SETUP:State.CLOTH_FRAMES;
                 }
                 case CLOTH_FRAMES -> {
                     Field field=Class.forName("net.fastclient.client.render.KushCapeRenderer").getDeclaredField("MOTION");field.setAccessible(true);
@@ -365,6 +367,14 @@ public final class CaptureDriver implements ClientModInitializer {
                     client.player.setYRot(-25);client.options.keyUp.setDown(true);waitTicks=45;state=State.CAPTURE_WORLD_CAPE;
                 }
                 case CAPTURE_WORLD_CAPE -> {
+                    if(WAVEY_ONLY){
+                        int frames=Class.forName("net.fastclient.client.render.KushWaveyBridge").getField("submittedFrames").getInt(null);
+                        if(frames<20)throw new IllegalStateException("Official Wavey did not render Kush cape: "+frames);
+                        Object solver=Class.forName("dev.tr7zw.waveycapes.versionless.CapeHolder").getMethod("getSimulation").invoke(client.player);
+                        if(solver==null)throw new IllegalStateException("No official Wavey simulation attached to player");
+                        System.out.println("[KushCapture] official Wavey renderer active, frames="+frames+", solver="+solver.getClass().getName());
+                        capture(client,"52-wavey-walking-in-game",State.STOP_WORLD_CAPE);return;
+                    }
                     Field field=Class.forName("net.fastclient.client.render.KushCapeRenderer").getDeclaredField("MOTION");field.setAccessible(true);
                     Object worldMotion=((java.util.Map<?,?>)field.get(null)).get(client.player.getId());if(worldMotion==null)throw new IllegalStateException("World cape physics not rendered");
                     Field points=worldMotion.getClass().getDeclaredField("points");points.setAccessible(true);float[] p=(float[])points.get(worldMotion);
@@ -373,7 +383,34 @@ public final class CaptureDriver implements ClientModInitializer {
                     capture(client,"40-cape-walking-in-game",State.STOP_WORLD_CAPE);
                 }
                 case STOP_WORLD_CAPE -> {client.options.keyUp.setDown(false);waitTicks=80;state=State.CAPTURE_WORLD_CAPE_STILL;}
-                case CAPTURE_WORLD_CAPE_STILL -> capture(client,"41-cape-idle-in-game",State.DONE);
+                case CAPTURE_WORLD_CAPE_STILL -> capture(client,WAVEY_ONLY?"53-wavey-idle-in-game":"41-cape-idle-in-game",WAVEY_ONLY?State.WAVEY_DISABLE:State.DONE);
+                case WAVEY_SETUP -> {
+                    Class<?> bridge=Class.forName("net.fastclient.client.render.KushWaveyBridge");
+                    if(!(boolean)bridge.getMethod("installed").invoke(null))throw new IllegalStateException("Wavey official missing");
+                    module("CapePhysics").getClass().getMethod("setEnabled",boolean.class).invoke(module("CapePhysics"),true);
+                    openModule(client,module("CapePhysics"));waitTicks=40;state=State.CAPTURE_WAVEY_SETUP;
+                }
+                case CAPTURE_WAVEY_SETUP -> capture(client,"50-wavey-kush-settings",State.OPEN_WAVEY_NATIVE);
+                case OPEN_WAVEY_NATIVE -> {
+                    waveyParent=client.screen;
+                    Field components=client.screen.getClass().getDeclaredField("components");components.setAccessible(true);
+                    Object button=((java.util.List<?>)components.get(client.screen)).stream().filter(x->x.getClass().getSimpleName().equals("KushWaveyButton")).findFirst().orElseThrow();
+                    int x=(int)button.getClass().getMethod("getX").invoke(button),y=(int)button.getClass().getMethod("getY").invoke(button);
+                    client.screen.mouseClicked(new net.minecraft.client.input.MouseButtonEvent(x+12,y+12,new net.minecraft.client.input.MouseButtonInfo(0,0)),false);
+                    if(client.screen==waveyParent)throw new IllegalStateException("Native settings button did not open Wavey");
+                    System.out.println("[KushCapture] Wavey original settings opened by native Kush button: "+client.screen.getClass().getName());
+                    waitTicks=45;state=State.CAPTURE_WAVEY_NATIVE;
+                }
+                case CAPTURE_WAVEY_NATIVE -> capture(client,"51-wavey-official-settings",State.WAVEY_RETURN_WORLD);
+                case WAVEY_RETURN_WORLD -> {client.setScreen(null);state=State.OPEN_WORLD_CAPE;}
+                case WAVEY_DISABLE -> {module("CapePhysics").getClass().getMethod("setEnabled",boolean.class).invoke(module("CapePhysics"),false);waitTicks=45;state=State.CAPTURE_WAVEY_DISABLED;}
+                case CAPTURE_WAVEY_DISABLED -> {
+                    capture(client,"54-wavey-physics-disabled",State.WAVEY_PAUSE);
+                    module("CapePhysics").getClass().getMethod("setEnabled",boolean.class).invoke(module("CapePhysics"),true);
+                    System.out.println("[KushCapture] Wavey toggle off restored vanilla cape layer without double rendering");
+                }
+                case WAVEY_PAUSE -> {client.pauseGame(false);waitTicks=40;state=State.CAPTURE_WAVEY_PAUSE;}
+                case CAPTURE_WAVEY_PAUSE -> capture(client,"55-wavey-pause-white-k",State.DONE);
                 case DONE -> { System.out.println("[KushCapture] complete"); Thread.sleep(500); System.exit(0); }
             }
         } catch (Throwable t) { t.printStackTrace(); System.err.println("[KushCapture] failed state="+state); System.exit(2); }

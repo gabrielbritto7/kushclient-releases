@@ -36,8 +36,8 @@ public final class LauncherRenderer {
     public static void render(class_332 g, class_327 font, int w, int h, int mx, int my) {
         REGIONS.clear(); g.method_25294(0, 0, w, h, 0xA509070A);
         int cx=w/2, bh=Math.max(34,Math.min(44,h/17)), gap=8, bw=Math.min(310,w-40);
-        int start=Math.max(166,h/2-54),logoW=Math.min(286,Math.round(h*0.40f)),logoH=Math.round(logoW*1080f/1920f);
-        KushAssets.image(g,KushAssets.SKATE,cx-logoW/2,start-logoH-22,logoW,logoH,1920,1080,-1);
+        int start=Math.max(166,h/2-54),logoW=Math.min(286,Math.round(h*0.40f)),logoH=Math.round(logoW*946f/1694f);
+        KushAssets.image(g,KushAssets.SKATE,cx-logoW/2,start-logoH-22,logoW,logoH,1694,946,-1);
         button(g,font,"singleplayer","Um jogador",cx-bw/2,start,bw,bh,mx,my,false);
         button(g,font,"multiplayer","Multijogador",cx-bw/2,start+(bh+gap),bw,bh,mx,my,false);
         button(g,font,"skins","Cosméticos",cx-bw/2,start+(bh+gap)*2,bw,bh,mx,my,false);
@@ -73,8 +73,8 @@ public final class LauncherRenderer {
         float s=Math.min(w/1920f,h/1080f);
         int cx=w/2,bh=Math.max(32,Math.round(69*s)),gap=Math.max(4,Math.round(6*s));
         int start=Math.max(156,h/2-Math.round(174*s)),bw=Math.min(w-40,Math.max(240,Math.round(360*s)));
-        int lw=Math.round(324*s),lh=Math.round(lw*1080f/1920f);
-        KushAssets.image(g,KushAssets.SKATE,cx-lw/2,start-lh-16,lw,lh,1920,1080,-1);
+        int lw=Math.round(324*s),lh=Math.round(lw*946f/1694f);
+        KushAssets.image(g,KushAssets.SKATE,cx-lw/2,start-lh-16,lw,lh,1694,946,-1);
         String[][] rows={{"pause_backtogame","Voltar ao jogo","back"},{"pause_fastclient_settings","Kush Settings","kush"},
             {"pause_options","Opções","gear"},{"pause_open_to_lan","Abrir para LAN","lan"},
             {"pause_modmenu","Mods","mods"},{"pause_disconnect","Desconectar","exit"}};
@@ -95,7 +95,7 @@ public final class LauncherRenderer {
         class_2561 c=class_2561.method_43470(label);
         int tw=font.method_27525((class_5348)c)*2, iw=14, gap=8, contentX=x+(w-tw-iw-gap)/2;
         int inkTop=y+h/2-7;
-        if(icon.equals("kush"))KushAssets.pixelLabelK(g,contentX,inkTop,iw,hovered);
+        if(icon.equals("kush"))KushAssets.menuK(g,contentX,inkTop,iw,iw);
         else KushAssets.symbol(g,icon,contentX,inkTop,iw,TEXT);
         text(g,font,c,contentX+iw+gap+tw/2,y+h/2,2f,TEXT);
     }
@@ -105,7 +105,7 @@ public final class LauncherRenderer {
     }
     private static void icon(class_332 g,class_327 font,String id,String glyph,String label,class_2960 texture,int x,int y,int s,int mx,int my){
         REGIONS.put(id,new int[]{x,y,s,s});boolean hover=hit(x,y,s,s,mx,my);surface(g,id,x,y,s,s,hover,false);
-        if(texture!=null)KushAssets.image(g,hover?KushAssets.PIXEL_RED_K:KushAssets.PIXEL_GRAY_K,x+8,y+7,s-16,s-14,1254,1254,-1);
+        if(texture!=null)KushAssets.menuK(g,x+8,y+7,s-16,s-14);
         else KushAssets.symbol(g,id.equals("box")?"folder":"gear",x+12,y+12,s-24,hover?0xFFFFCDD5:0xFFB4A4AC);
         if(hover)tooltip(g,font,label,x+s/2,y+s+8);
     }

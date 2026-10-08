@@ -95,7 +95,7 @@ p.write_text(s)
 
 p=JAVA/'gui/screens/ClickGUIScreen.java';s=p.read_text()
 s=s.replace('"FastClientHUD"','"Kush Mods"')
-s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.9  ·  Minecraft 1.21.11"')
+s=s.replace('"Fastclient 1.21.11 (release/ca786cd3)"','"KushMod 0.3.10  ·  Minecraft 1.21.11"')
 s=s.replace('"MOD MENU"','"KUSH MODS"')
 s=s.replace('"All" : categories', '"Todos" : categories')
 s=s.replace('"Search"','"Buscar"')
@@ -239,7 +239,7 @@ s=s.replace('this.drawScaledText(graphics, FastClientFonts.filledMaterialSymbol(
     'net.fastclient.hud.gui.KushAssets.symbol(graphics, "gear", leftX+3, chipY+3, chipSize-6, FastClientUI.fade(settingsHovered ? -723724 : -7303024, 235));')
 p.write_text(s)
 
-props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.9').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
+props=PROJECT/'gradle.properties';s=props.read_text().replace('mod_version=1.0.72-unlocked','mod_version=0.3.10').replace('archives_base_name=fastclient-hud','archives_base_name=KushMod-1.21.11')
 props.write_text(s)
 print('Theme applied')
 
@@ -310,7 +310,7 @@ s=s.replace(needle,needle+'''
         }''',1)
 p.write_text(s)
 
-# Kush 0.3.9: language, readable modal dialogs and restored cosmetics.
+# Kush 0.3.10: language, readable modal dialogs and restored cosmetics.
 lang=ASSETS/'lang/kush_pt_br.json';lang.parent.mkdir(parents=True,exist_ok=True)
 shutil.copyfile(ROOT/'language/pt_br.json',lang)
 gradle=PROJECT/'build.gradle';s=gradle.read_text();s=s.replace('dependencies {','dependencies {\n    compileOnly files("../kush-theme/base.jar")',1);gradle.write_text(s)
@@ -380,7 +380,19 @@ for group,artifact in [('imageio','imageio-webp'),('imageio','imageio-core'),('i
 gradle.write_text(s)
 
 config=PROJECT/'src/main/resources/fastclient-hud.client.mixins.json'
-data=json.loads(config.read_text());data['client'].extend(['KushMouseInputMixin','KushCapeFeatureMixin','KushCapeModuleMixin']);config.write_text(json.dumps(data,indent=2))
+data=json.loads(config.read_text());data['client'].extend(['KushMouseInputMixin','KushCapeFeatureMixin','KushCapeModuleMixin','KushWaveyLayerMixin','KushWaveyBrightnessMixin']);config.write_text(json.dumps(data,indent=2))
 
 # Independent Kush cape physics icon, matched to the outline module icons.
 p=JAVA/'gui/FastClientUI.java';s=p.read_text().replace('    public static class_2960 icon(Module module) {','    public static class_2960 icon(Module module) {\n        if (module.getName().equals("CapePhysics")) return class_2960.method_60655("fastclient-hud","textures/gui/kush/cape-physics.png");');p.write_text(s)
+
+# Optional official Wavey settings are part of the cape module's native form.
+p=JAVA/'gui/screens/ModuleConfigScreen.java';s=p.read_text()
+needle='        for (Setting<?> setting : this.module.getSettings()) {'
+assert s.count(needle)==1
+s=s.replace(needle,'''        if (this.module.getName().equals("CapePhysics") && net.fastclient.client.render.KushWaveyBridge.installed()) {
+            this.addRow(new net.fastclient.hud.gui.components.KushWaveyButton(centerX,y,settingWidth,this),
+                "The installed Wavey Capes handles movement. Open its original settings here.",32);
+            y += this.rowHeight(32) + rowGap;
+        }
+'''+needle)
+p.write_text(s)
