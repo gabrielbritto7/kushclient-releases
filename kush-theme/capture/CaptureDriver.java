@@ -255,6 +255,12 @@ public final class CaptureDriver implements ClientModInitializer {
                         Field frames=animation.getClass().getDeclaredField("frames"),delay=animation.getClass().getDeclaredField("framesPerStep");frames.setAccessible(true);delay.setAccessible(true);
                         if(frames.getInt(animation)!=Integer.parseInt(spec[1]) || delay.getInt(animation)!=Integer.parseInt(spec[2]))throw new IllegalStateException("Wrong accessory texture animation "+spec[0]);
                     }
+                    Field thumbnails=Class.forName("net.fastclient.client.gui.KushCatalogThumbnails").getDeclaredField("READY");thumbnails.setAccessible(true);
+                    Object wingThumb=((java.util.Map<?,?>)thumbnails.get(null)).get("cosmetica-NHpZe");
+                    if(wingThumb==null)throw new IllegalStateException("Animated wing thumbnail missing");
+                    int tw=(int)wingThumb.getClass().getMethod("width").invoke(wingThumb),th=(int)wingThumb.getClass().getMethod("height").invoke(wingThumb);
+                    if(tw>128 || th>128 || tw<th/2)throw new IllegalStateException("Wing thumbnail still shows a film strip: "+tw+"x"+th);
+                    System.out.println("[KushCapture] animated wing thumbnail is a complete native card preview: "+tw+"x"+th);
                     System.out.println("[KushCapture] GPU animations verified: hand 4 frames / 150ms and wings 6 frames / 200ms");
                     capture(client,"29-accessories-back",State.SET_ACCESSORIES_FRONT);
                 }

@@ -24,6 +24,8 @@ jobs:
           mkdir -p /tmp/kush-image-check
           javac -d /tmp/kush-image-check kush-theme/java/net/fastclient/hud/gui/KushImageResampler.java kush-theme/tests/ResamplerCheck.java
           java -Djava.awt.headless=true -cp /tmp/kush-image-check ResamplerCheck
+          javac -d /tmp/kush-image-check kush-theme/java/net/fastclient/hud/gui/KushThumbnailFrames.java kush-theme/tests/ThumbnailFramesCheck.java
+          java -Djava.awt.headless=true -cp /tmp/kush-image-check ThumbnailFramesCheck
       - name: Build native UI
         run: |
           git clone https://github.com/itz0cat/fastclient-hud.git base
@@ -50,7 +52,7 @@ jobs:
           mkdir -p logs capture/run/kush-captures
           Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset > logs/xvfb.log 2>&1 &
           XPID=$!
-          export DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 ALSOFT_DRIVERS=null KUSH_CAPTURE_ACCESSORIES_ONLY=0
+          export DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 ALSOFT_DRIVERS=null KUSH_CAPTURE_ACCESSORIES_ONLY=1
           for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep .2; done
           set +e
           cd capture
