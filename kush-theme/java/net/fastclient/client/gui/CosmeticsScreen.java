@@ -237,7 +237,7 @@ extends class_437 {
             g.method_25294(cx+5,cy+5,cx+card-5,cy+5+imageSize,0xFF625965);
             var thumbnail=KushCatalogThumbnails.get(item);
             if(thumbnail!=null) {
-                var id=net.fastclient.client.render.CosmeticTextures.get("thumb-"+item.id(),thumbnail.png(),-1,0);
+                var id=net.fastclient.client.render.CosmeticTextures.get("thumb-"+item.id(),thumbnail.png(),-thumbnail.frames(),thumbnail.delay());
                 if(id!=null){int[] fit=net.fastclient.hud.gui.KushImageResampler.contain(thumbnail.width(),thumbnail.height(),imageSize,imageSize);
                     g.method_25293(net.minecraft.class_10799.field_56883,id,cx+(card-fit[0])/2,cy+5+(imageSize-fit[1])/2,0,0,fit[0],fit[1],thumbnail.width(),thumbnail.height(),thumbnail.width(),thumbnail.height(),-1);
                 }

@@ -14,10 +14,12 @@ public class Keystrokes extends Module {
     private final BooleanSetting showMouse=register(new BooleanSetting("show_mouse","Show mouse buttons",true));
     private final BooleanSetting showSpace=register(new BooleanSetting("show_space","Show spacebar",true));
     private final BooleanSetting showCps=register(new BooleanSetting("show_cps","Show CPS inside mouse buttons",true));
+    private final BooleanSetting rgbBorder=register(new BooleanSetting("rgb_border","Animated RGB border",false));
+    private final NumberSetting rgbPeriod=register(new NumberSetting("rgb_period","Seconds per RGB cycle",6,1,15,1));
     private final ColorSetting pressedColor=register(new ColorSetting("pressed_color","Pressed key color",181,39,60));
     private final ColorSetting normalColor=register(new ColorSetting("normal_color","Normal key color",25,19,23));
-    public Keystrokes(){super("Keystrokes","Shows pressed keys visually",Category.HUD);showCps.visibleWhen(showMouse::isEnabled);}
-    private void box(class_332 g,int x,int y,int w,int h,String label,String count,boolean pressed){KushModernKeys.box(g,x,y,w,h,label,count,pressed,pressedColor.getRGB(),normalColor.getRGB());}
+    public Keystrokes(){super("Keystrokes","Shows pressed keys visually",Category.HUD);showCps.visibleWhen(showMouse::isEnabled);rgbPeriod.visibleWhen(rgbBorder::isEnabled);}
+    private void box(class_332 g,int x,int y,int w,int h,String label,String count,boolean pressed){KushModernKeys.box(g,x,y,w,h,label,count,pressed,pressedColor.getRGB(),normalColor.getRGB(),rgbBorder.isEnabled(),rgbPeriod.getFloatValue());}
     @Override public void onRender(class_332 g,float delta) {
         if(!isInGame())return;
         g.method_51448().pushMatrix();g.method_51448().translate(getHudX(),getHudY());g.method_51448().scale(getHudScale(),getHudScale());

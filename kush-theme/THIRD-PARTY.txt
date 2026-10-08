@@ -1,4 +1,4 @@
-KushMod 0.3.8
+KushMod 0.3.9
 
 Modern Keystrokes: https://github.com/arsrillon/modern-keystrokes
 Source revision b798a95d8c9b98d92b998d1c42e04e9017b4e7c8, MIT.
@@ -11,3 +11,7 @@ Licenses included in the distributed JAR under licenses/.
 
 Cosmetica catalog content is fetched from its public API/CDN.
 Cosmetics remain local previews and equipment. No shared player outfit service is added.
+
+Cape Physics, cape card geometry and RGB extensions are original Kush implementation.
+WaveyCapes was reviewed as a behavioral reference only; no WaveyCapes source, classes, assets or JAR are redistributed.
+Cape cards use actual vanilla cape UVs on a closed, curved mesh with 12 cached animation frames.

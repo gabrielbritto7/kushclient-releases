@@ -65,6 +65,7 @@ extends class_922<class_11890, class_10055, class_591> {
 
     @Inject(method={"method_62604"}, at={@At(value="TAIL")})
     private void fastclientcore$extractCosmetics(class_11890 entity, class_10055 state, float partialTick, CallbackInfo ci) {
+        net.fastclient.client.render.KushCapeRenderer.note(entity,state);
         class_2960 capeTexture;
         CosmeticsStateHolder holder = (CosmeticsStateHolder)state;
         PlayerCosmetics cosmetics = null;

@@ -12,7 +12,7 @@ import net.fastclient.hud.gui.KushImageResampler;
 
 /** Official catalog thumbnails, fetched and reduced off the render thread. */
 public final class KushCatalogThumbnails {
-    public record Image(byte[] png,int width,int height) {}
+    public record Image(byte[] png,int width,int height,int frames,int delay) {public Image(byte[] png,int width,int height){this(png,width,height,1,0);}}
     private static final Map<String,Image> READY=Collections.synchronizedMap(new LinkedHashMap<>(64,.75f,true));
     private static final Map<String,Long> FAILED=new ConcurrentHashMap<>();
     private static final Set<String> PENDING=ConcurrentHashMap.newKeySet();
@@ -44,14 +44,12 @@ public final class KushCatalogThumbnails {
                     source=reader.read(0);
                 }finally{reader.dispose();}
             }
-            if(cape){int unit=Math.max(1,source.getWidth()/64);BufferedImage face=new BufferedImage(10*unit,16*unit,BufferedImage.TYPE_INT_ARGB);
-                var g=face.createGraphics();try{g.drawImage(source,0,0,10*unit,16*unit,unit,unit,11*unit,17*unit,null);}finally{g.dispose();}source.flush();source=face;}
-            if(!cape){BufferedImage view=net.fastclient.hud.gui.KushThumbnailFrames.firstView(raw,source);source.flush();source=view;}
-            source=KushImageResampler.trimAlpha(source);
-            int[] fit=KushImageResampler.contain(source.getWidth(),source.getHeight(),128,128);
-            BufferedImage small=KushImageResampler.resize(source,fit[0],fit[1]);source.flush();
+            int frames=1,delay=0;BufferedImage small;int[] fit;
+            if(cape){small=net.fastclient.hud.gui.KushCapeCards.bake(source);source.flush();fit=new int[]{128,128};frames=net.fastclient.hud.gui.KushCapeCards.FRAMES;delay=net.fastclient.hud.gui.KushCapeCards.DELAY;}
+            else{BufferedImage view=net.fastclient.hud.gui.KushThumbnailFrames.firstView(raw,source);source.flush();source=KushImageResampler.trimAlpha(view);
+                fit=KushImageResampler.contain(source.getWidth(),source.getHeight(),128,128);small=KushImageResampler.resize(source,fit[0],fit[1]);source.flush();}
             ByteArrayOutputStream out=new ByteArrayOutputStream();ImageIO.write(small,"PNG",out);small.flush();
-            Image image=new Image(out.toByteArray(),fit[0],fit[1]);
+            Image image=new Image(out.toByteArray(),fit[0],fit[1],frames,delay);
             synchronized(READY){while(READY.size()>=64)READY.remove(READY.keySet().iterator().next());READY.put(entry.id(),image);}
             FAILED.remove(entry.id());
         }catch(Exception failure){FAILED.put(entry.id(),System.currentTimeMillis()+30_000L);org.slf4j.LoggerFactory.getLogger("Kush").debug("Catalog thumbnail unavailable for {}: {}",entry.id(),failure.toString());}

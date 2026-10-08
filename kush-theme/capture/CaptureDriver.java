@@ -23,20 +23,22 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, PRESS_INPUT, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, OPEN_CPS_RGB, CAPTURE_CPS_RGB, OPEN_KEYS_RGB, CAPTURE_KEYS_RGB, OPEN_PHYSICS, CAPTURE_PHYSICS, SET_PHYSICS_EN, CAPTURE_PHYSICS_EN, PREPARE_CLOTH, WAIT_CLOTH, CLOTH_FRAMES, PHYSICS_OFF, CAPTURE_PHYSICS_OFF, DONE
     }
     private static final boolean ACCESSORIES_ONLY="1".equals(System.getenv("KUSH_CAPTURE_ACCESSORIES_ONLY"));
     private static State state = State.WAIT_TITLE;
     private static int waitTicks;
     private static int stableTicks;
     private static boolean capturing;
+    private static int clothFrame;
+    private static float[] clothFirst;
     private static volatile boolean cacheVerified;
     private static volatile Throwable cacheFailure;
 
     public void onInitializeClient() {
         String loaded = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("fastclient-hud")
             .orElseThrow().getMetadata().getVersion().getFriendlyString();
-        if (!loaded.equals("1.0.72+kush.0.3.8")) throw new IllegalStateException("Wrong test JAR: " + loaded);
+        if (!loaded.equals("1.0.72+kush.0.3.9")) throw new IllegalStateException("Wrong test JAR: " + loaded);
         System.out.println("[KushCapture] loaded KushMod=" + loaded);
         ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
         System.out.println("[KushCapture] initialized");
@@ -180,6 +182,9 @@ public final class CaptureDriver implements ClientModInitializer {
                     if(ready.size()<12){if(stableTicks++>600)throw new IllegalStateException("Real catalog thumbnails never decoded");return;}
                     Field rows=client.screen.getClass().getDeclaredField("rowRects");rows.setAccessible(true);
                     java.util.List<?> cards=(java.util.List<?>)rows.get(client.screen);if(cards.size()<4)throw new IllegalStateException("Square cards were not laid out");
+                    Object own=catalog().stream().filter(e->{try{return !e.getClass().getMethod("id").invoke(e).toString().startsWith("cosmetica-");}catch(Exception x){throw new RuntimeException(x);}}).findFirst().orElseThrow();
+                    Object cardPreview=ready.get(own.getClass().getMethod("id").invoke(own));if(cardPreview==null || (int)cardPreview.getClass().getMethod("frames").invoke(cardPreview)!=12)throw new IllegalStateException("Own cape has no animated 3D card");
+                    System.out.println("[KushCapture] 12-frame real UV cape card animation ready");
                     System.out.println("[KushCapture] real catalog previews decoded="+ready.size()+"; visible square cards="+cards.size());
                     capture(client,"25-kush-catalog",State.TRY_CAPE);
                 }
@@ -306,7 +311,53 @@ public final class CaptureDriver implements ClientModInitializer {
                         System.out.println("[KushCapture] fresh provider restored cape, halo, hat, arm and wings from disk cache");cacheVerified=true;
                     }catch(Throwable failure){cacheFailure=failure;}},"Kush-Cached-Restart-Test");worker.setDaemon(true);worker.start();stableTicks=0;state=State.VERIFY_CACHED_RESTART;
                 }
-                case VERIFY_CACHED_RESTART -> {if(cacheFailure!=null)throw new IllegalStateException("Cached restart failed",cacheFailure);if(cacheVerified)state=State.DONE;else if(stableTicks++>600)throw new IllegalStateException("Cached restore timed out");}
+                case VERIFY_CACHED_RESTART -> {if(cacheFailure!=null)throw new IllegalStateException("Cached restart failed",cacheFailure);if(cacheVerified)state=State.OPEN_CPS_RGB;else if(stableTicks++>600)throw new IllegalStateException("Cached restore timed out");}
+                case OPEN_CPS_RGB -> {
+                    Object m=module("CPSCounter");Object rgb=m.getClass().getMethod("getSetting",String.class).invoke(m,"rgb_border");
+                    if((boolean)rgb.getClass().getMethod("isEnabled").invoke(rgb))throw new IllegalStateException("RGB must default to off");
+                    setSetting(m,"rgb_border",true);openModule(client,m);waitTicks=35;state=State.CAPTURE_CPS_RGB;
+                }
+                case CAPTURE_CPS_RGB -> capture(client,"34-cps-rgb-settings",State.OPEN_KEYS_RGB);
+                case OPEN_KEYS_RGB -> {Object m=module("Keystrokes");setSetting(m,"rgb_border",true);openModule(client,m);waitTicks=35;state=State.CAPTURE_KEYS_RGB;}
+                case CAPTURE_KEYS_RGB -> capture(client,"35-wasd-rgb-settings",State.OPEN_PHYSICS);
+                case OPEN_PHYSICS -> {
+                    Object m=module("CapePhysics");if(!(boolean)m.getClass().getMethod("isEnabled").invoke(m))throw new IllegalStateException("Cape physics missing default");
+                    if(((java.util.List<?>)manager().getClass().getMethod("getModules").invoke(manager())).size()!=44)throw new IllegalStateException("Original 43 modules were not retained plus new cape physics");
+                    openModule(client,m);waitTicks=35;state=State.CAPTURE_PHYSICS;
+                }
+                case CAPTURE_PHYSICS -> capture(client,"36-cape-physics-settings-pt",State.SET_PHYSICS_EN);
+                case SET_PHYSICS_EN -> {language(false);waitTicks=25;state=State.CAPTURE_PHYSICS_EN;}
+                case CAPTURE_PHYSICS_EN -> capture(client,"37-cape-physics-settings-en",State.PREPARE_CLOTH);
+                case PREPARE_CLOTH -> {
+                    language(true);local().getClass().getMethod("clearPreview").invoke(local());local().getClass().getMethod("clear").invoke(local());
+                    Object entry=catalog().stream().filter(e->{try{return e.getClass().getMethod("category").invoke(e).equals("cape")&&!e.getClass().getMethod("id").invoke(e).toString().startsWith("cosmetica-");}catch(Exception x){throw new RuntimeException(x);}}).findFirst().orElseThrow();
+                    local().getClass().getMethod("toggle",entry.getClass()).invoke(local(),entry);
+                    open(client,"net.fastclient.client.gui.CosmeticsScreen");selectEntry(client,entry);
+                    Field yaw=client.screen.getClass().getDeclaredField("previewYaw");yaw.setAccessible(true);yaw.setFloat(client.screen,140f);
+                    setSetting(module("CapePhysics"),"wind_strength",80.0);stableTicks=0;state=State.WAIT_CLOTH;
+                }
+                case WAIT_CLOTH -> {
+                    if(cape("forRender")==null){if(stableTicks++>500)throw new IllegalStateException("Own cape missing");return;}
+                    waitTicks=35;clothFrame=0;state=State.CLOTH_FRAMES;
+                }
+                case CLOTH_FRAMES -> {
+                    Field field=Class.forName("net.fastclient.client.render.KushCapeRenderer").getDeclaredField("MOTION");field.setAccessible(true);
+                    java.util.Map<?,?> motions=(java.util.Map<?,?>)field.get(null);float[] pose=null;
+                    for(Object motion:motions.values()){Field preview=motion.getClass().getDeclaredField("preview"),points=motion.getClass().getDeclaredField("points");preview.setAccessible(true);points.setAccessible(true);if(preview.getBoolean(motion)&&points.get(motion)!=null)pose=(float[])points.get(motion);}
+                    if(pose==null)throw new IllegalStateException("Native cape physics renderer did not submit a cloth mesh");
+                    if(clothFrame==0)clothFirst=pose.clone();
+                    if(clothFrame==9){boolean changed=false;for(int i=0;i<pose.length;i++)if(Math.abs(pose[i]-clothFirst[i])>.001)changed=true;if(!changed)throw new IllegalStateException("Cape mesh remained static");System.out.println("[KushCapture] real custom cape mesh changed across native frames; 44 modules preserved");}
+                    String file=String.format("38-cape-motion-%02d",clothFrame++);capture(client,file,clothFrame>=10?State.PHYSICS_OFF:State.CLOTH_FRAMES);
+                }
+                case PHYSICS_OFF -> {module("CapePhysics").getClass().getMethod("setEnabled",boolean.class).invoke(module("CapePhysics"),false);waitTicks=30;state=State.CAPTURE_PHYSICS_OFF;}
+                case CAPTURE_PHYSICS_OFF -> {
+                    capture(client,"39-cape-physics-disabled",State.DONE);
+                    module("CapePhysics").getClass().getMethod("setEnabled",boolean.class).invoke(module("CapePhysics"),true);
+                    setSetting(module("CapePhysics"),"wind_strength",35.0);manager().getClass().getMethod("saveConfig").invoke(manager());
+                    Path cfg=client.gameDirectory.toPath().resolve("config/fast-client-hud/modules.json");
+                    String saved=Files.readString(cfg);if(!saved.contains("CapePhysics")||!saved.contains("rgb_border"))throw new IllegalStateException("New cape/RGB settings not saved");
+                    System.out.println("[KushCapture] native enabled/disabled cape render path and persisted RGB/physics settings verified");
+                }
                 case DONE -> { System.out.println("[KushCapture] complete"); Thread.sleep(500); System.exit(0); }
             }
         } catch (Throwable t) { t.printStackTrace(); System.err.println("[KushCapture] failed state="+state); System.exit(2); }
@@ -333,6 +384,9 @@ public final class CaptureDriver implements ClientModInitializer {
         return (java.util.List<?>)cache.getClass().getMethod("catalog").invoke(cache);
     }
 
+    private static Object module(String name)throws Exception {Object m=manager().getClass().getMethod("getModule",String.class).invoke(manager(),name);if(m==null)throw new IllegalStateException("Missing module "+name);return m;}
+    private static void setSetting(Object module,String name,Object value)throws Exception {Object setting=module.getClass().getMethod("getSetting",String.class).invoke(module,name);setting.getClass().getMethod("setValue",Object.class).invoke(setting,value);}
+    private static void openModule(Minecraft client,Object module)throws Exception {Class<?> screen=Class.forName("net.fastclient.hud.gui.screens.ModuleConfigScreen");client.setScreen((Screen)screen.getConstructor(Class.forName("net.fastclient.hud.modules.Module"),Screen.class).newInstance(module,client.screen));}
     private static Object manager() throws Exception {
         Class<?> main=Class.forName("net.fastclient.hud.FastClientHUDClient");
         Object instance=main.getDeclaredMethod("getInstance").invoke(null);
