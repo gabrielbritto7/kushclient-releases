@@ -383,4 +383,4 @@ config=PROJECT/'src/main/resources/fastclient-hud.client.mixins.json'
 data=json.loads(config.read_text());data['client'].extend(['KushMouseInputMixin','KushCapeFeatureMixin','KushCapeModuleMixin']);config.write_text(json.dumps(data,indent=2))
 
 # Independent Kush cape physics icon, matched to the outline module icons.
-p=JAVA/'gui/FastClientUI.java';s=p.read_text().replace('    public static class_2960 icon(Module module) {','    public static class_2960 icon(Module module) {\n        if (module.getName().equals("CapePhysics")) return DisplaySpace.texture(class_2960.method_60655("fastclient-hud","textures/gui/kush/cape-physics.png"));');p.write_text(s)
+p=JAVA/'gui/FastClientUI.java';s=p.read_text().replace('    public static class_2960 icon(Module module) {','    public static class_2960 icon(Module module) {\n        if (module.getName().equals("CapePhysics")) return class_2960.method_60655("fastclient-hud","textures/gui/kush/cape-physics.png");');p.write_text(s)

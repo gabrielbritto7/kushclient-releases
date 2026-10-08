@@ -54,7 +54,7 @@ jobs:
           mkdir -p logs capture/run/kush-captures
           Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset > logs/xvfb.log 2>&1 &
           XPID=$!
-          export DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 ALSOFT_DRIVERS=null KUSH_CAPTURE_ACCESSORIES_ONLY=0
+          export DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 ALSOFT_DRIVERS=null KUSH_CAPTURE_ACCESSORIES_ONLY=1
           for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep .2; done
           set +e
           cd capture

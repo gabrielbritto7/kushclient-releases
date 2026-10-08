@@ -23,7 +23,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, PRESS_INPUT, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, OPEN_CPS_RGB, CAPTURE_CPS_RGB, OPEN_KEYS_RGB, CAPTURE_KEYS_RGB, OPEN_PHYSICS, CAPTURE_PHYSICS, SET_PHYSICS_EN, CAPTURE_PHYSICS_EN, PREPARE_CLOTH, WAIT_CLOTH, CLOTH_FRAMES, PHYSICS_OFF, CAPTURE_PHYSICS_OFF, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, OPEN_CPS_RGB, CAPTURE_CPS_RGB, OPEN_KEYS_RGB, CAPTURE_KEYS_RGB, OPEN_PHYSICS, CAPTURE_PHYSICS, SCROLL_PHYSICS, CAPTURE_PHYSICS_MORE, SET_PHYSICS_EN, CAPTURE_PHYSICS_EN, PREPARE_CLOTH, WAIT_CLOTH, CLOTH_FRAMES, PHYSICS_OFF, CAPTURE_PHYSICS_OFF, OPEN_WORLD_CAPE, CAPTURE_WORLD_CAPE, STOP_WORLD_CAPE, CAPTURE_WORLD_CAPE_STILL, DONE
     }
     private static final boolean ACCESSORIES_ONLY="1".equals(System.getenv("KUSH_CAPTURE_ACCESSORIES_ONLY"));
     private static State state = State.WAIT_TITLE;
@@ -325,8 +325,10 @@ public final class CaptureDriver implements ClientModInitializer {
                     if(((java.util.List<?>)manager().getClass().getMethod("getModules").invoke(manager())).size()!=44)throw new IllegalStateException("Original 43 modules were not retained plus new cape physics");
                     openModule(client,m);waitTicks=35;state=State.CAPTURE_PHYSICS;
                 }
-                case CAPTURE_PHYSICS -> capture(client,"36-cape-physics-settings-pt",State.SET_PHYSICS_EN);
-                case SET_PHYSICS_EN -> {language(false);waitTicks=25;state=State.CAPTURE_PHYSICS_EN;}
+                case CAPTURE_PHYSICS -> capture(client,"36-cape-physics-settings-pt",State.SCROLL_PHYSICS);
+                case SCROLL_PHYSICS -> {scrollConfigToBottom(client);waitTicks=25;state=State.CAPTURE_PHYSICS_MORE;}
+                case CAPTURE_PHYSICS_MORE -> capture(client,"36b-cape-physics-quality-preview",State.SET_PHYSICS_EN);
+                case SET_PHYSICS_EN -> {openModule(client,module("CapePhysics"));language(false);waitTicks=25;state=State.CAPTURE_PHYSICS_EN;}
                 case CAPTURE_PHYSICS_EN -> capture(client,"37-cape-physics-settings-en",State.PREPARE_CLOTH);
                 case PREPARE_CLOTH -> {
                     language(true);local().getClass().getMethod("clearPreview").invoke(local());local().getClass().getMethod("clear").invoke(local());
@@ -351,13 +353,27 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case PHYSICS_OFF -> {module("CapePhysics").getClass().getMethod("setEnabled",boolean.class).invoke(module("CapePhysics"),false);waitTicks=30;state=State.CAPTURE_PHYSICS_OFF;}
                 case CAPTURE_PHYSICS_OFF -> {
-                    capture(client,"39-cape-physics-disabled",State.DONE);
+                    capture(client,"39-cape-physics-disabled",State.OPEN_WORLD_CAPE);
                     module("CapePhysics").getClass().getMethod("setEnabled",boolean.class).invoke(module("CapePhysics"),true);
                     setSetting(module("CapePhysics"),"wind_strength",35.0);manager().getClass().getMethod("saveConfig").invoke(manager());
                     Path cfg=client.gameDirectory.toPath().resolve("config/fast-client-hud/modules.json");
                     String saved=Files.readString(cfg);if(!saved.contains("CapePhysics")||!saved.contains("rgb_border"))throw new IllegalStateException("New cape/RGB settings not saved");
                     System.out.println("[KushCapture] native enabled/disabled cape render path and persisted RGB/physics settings verified");
                 }
+                case OPEN_WORLD_CAPE -> {
+                    client.setScreen(null);client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK);
+                    client.player.setYRot(-25);client.options.keyUp.setDown(true);waitTicks=45;state=State.CAPTURE_WORLD_CAPE;
+                }
+                case CAPTURE_WORLD_CAPE -> {
+                    Field field=Class.forName("net.fastclient.client.render.KushCapeRenderer").getDeclaredField("MOTION");field.setAccessible(true);
+                    Object worldMotion=((java.util.Map<?,?>)field.get(null)).get(client.player.getId());if(worldMotion==null)throw new IllegalStateException("World cape physics not rendered");
+                    Field points=worldMotion.getClass().getDeclaredField("points");points.setAccessible(true);float[] p=(float[])points.get(worldMotion);
+                    if(p==null || p[p.length-1]<.12)throw new IllegalStateException("Walking world cape has no motion");
+                    System.out.println("[KushCapture] third-person world cape physics rendered while walking, bend="+p[p.length-1]);
+                    capture(client,"40-cape-walking-in-game",State.STOP_WORLD_CAPE);
+                }
+                case STOP_WORLD_CAPE -> {client.options.keyUp.setDown(false);waitTicks=80;state=State.CAPTURE_WORLD_CAPE_STILL;}
+                case CAPTURE_WORLD_CAPE_STILL -> capture(client,"41-cape-idle-in-game",State.DONE);
                 case DONE -> { System.out.println("[KushCapture] complete"); Thread.sleep(500); System.exit(0); }
             }
         } catch (Throwable t) { t.printStackTrace(); System.err.println("[KushCapture] failed state="+state); System.exit(2); }
@@ -545,7 +561,7 @@ public final class CaptureDriver implements ClientModInitializer {
                 Path out=outDir.resolve(name+".png");
                 Files.copy(latest,out,StandardCopyOption.REPLACE_EXISTING);
                 System.out.println("[KushCapture] saved="+out.toAbsolutePath());
-                state=next; waitTicks=45; capturing=false;
+                state=next; waitTicks=name.startsWith("38-cape-motion")?3:45; capturing=false;
             } catch(Throwable t){ t.printStackTrace(); System.exit(3); }
         }));
     }
