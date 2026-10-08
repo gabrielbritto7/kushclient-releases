@@ -142,7 +142,7 @@ public final class CaptureDriver implements ClientModInitializer {
                 case CAPTURE_PRESETS_EN -> capture(client,"23-presets-en",State.OPEN_CONFIG_EN);
                 case OPEN_CONFIG_EN -> {openConfig(client);waitTicks=40;state=State.CAPTURE_CONFIG_EN;}
                 case CAPTURE_CONFIG_EN -> capture(client,"24-module-en",State.OPEN_COSMETICS);
-                case OPEN_COSMETICS -> {language(true);open(client,"net.fastclient.client.gui.CosmeticsScreen");stableTicks=0;state=State.WAIT_CATALOG;}
+                case OPEN_COSMETICS -> {if(ACCESSORIES_ONLY)language(false);language(true);open(client,"net.fastclient.client.gui.CosmeticsScreen");stableTicks=0;state=State.WAIT_CATALOG;}
                 case WAIT_CATALOG -> {
                     if(!catalog().isEmpty()){waitTicks=80;state=State.CAPTURE_COSMETICS;}
                     else if(stableTicks++>600)throw new IllegalStateException("Kush site catalog never loaded");
