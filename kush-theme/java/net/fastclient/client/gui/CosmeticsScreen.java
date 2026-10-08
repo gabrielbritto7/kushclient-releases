@@ -248,8 +248,10 @@ extends class_437 {
             if (active) {
                 g.method_25294(x, ry, x + 2, ry + 20, this.mode == Mode.DRESS ? -1890762 : -11751570);
             }
-            this.drawText(g, this.field_22793.method_27523(e.entry().label(), Math.max(20,rowW-90)), x + 10, ry + 6, !actionable ? -6052957 : (active ? (this.mode == Mode.DRESS ? -1890762 : -11751570) : -1));
             status = this.mode == Mode.DRESS ? (active ? "trying on" : (e.owned() ? "owned" : "preview")) : (active ? "equipped" : (FastClientCoreClient.canEquipOwn() ? "" : "sign in"));
+            int labelWidth=Math.max(0,rowW-24-this.width(status));
+            String name=net.fastclient.hud.gui.KushLanguage.translate(e.entry().label());
+            this.drawText(g, this.field_22793.method_27523(name,labelWidth), x + 10, ry + 6, !actionable ? -6052957 : (active ? (this.mode == Mode.DRESS ? -1890762 : -11751570) : -1));
             if (!status.isEmpty()) {
                 this.drawText(g, status, x + rowW - 6 - this.width(status), ry + 6, active ? (this.mode == Mode.DRESS ? -1890762 : -11751570) : -6052957);
             }
