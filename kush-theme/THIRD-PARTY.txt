@@ -1,0 +1,13 @@
+KushMod 0.3.8
+
+Modern Keystrokes: https://github.com/arsrillon/modern-keystrokes
+Source revision b798a95d8c9b98d92b998d1c42e04e9017b4e7c8, MIT.
+Adapted key/CPS boxes and MouseHandler callback into existing Kush modules.
+Kush uses monotonic one-second windows on the game thread rather than an extra timer thread.
+Armor Status is the Kush native module, extended with held items and durability bars.
+
+TwelveMonkeys ImageIO 3.12.0, BSD-3-Clause, official WebP thumbnail decoder.
+Licenses included in the distributed JAR under licenses/.
+
+Cosmetica catalog content is fetched from its public API/CDN.
+Cosmetics remain local previews and equipment. No shared player outfit service is added.

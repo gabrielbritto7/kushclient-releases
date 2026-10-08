@@ -41,7 +41,7 @@ jobs:
           cp kush-theme/capture/fabric.mod.json capture/src/main/resources/
           cp kush-theme/capture/CaptureDriver.java capture/src/main/java/dev/kush/capture/
           cp kush-theme/capture/options.txt capture/run/
-          cp dist/KushMod-1.21.11-v0.3.7.jar capture/run/mods/
+          cp dist/KushMod-1.21.11-v0.3.8.jar capture/run/mods/
           printf '\nlang:en_us\nmenuBackgroundBlurriness:4\n' >> capture/run/options.txt
       - name: Real Minecraft framebuffer captures
         run: |
@@ -50,7 +50,7 @@ jobs:
           mkdir -p logs capture/run/kush-captures
           Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset > logs/xvfb.log 2>&1 &
           XPID=$!
-          export DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 ALSOFT_DRIVERS=null KUSH_CAPTURE_ACCESSORIES_ONLY=1
+          export DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 ALSOFT_DRIVERS=null KUSH_CAPTURE_ACCESSORIES_ONLY=0
           for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep .2; done
           set +e
           cd capture
@@ -67,7 +67,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-1.21.11-v0.3.7
+          name: KushMod-1.21.11-v0.3.8
           path: dist/*
           if-no-files-found: warn
           retention-days: 90
@@ -75,7 +75,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-v0.3.7-native-screenshots
+          name: KushMod-v0.3.8-native-screenshots
           path: capture/run/kush-captures/*.png
           if-no-files-found: warn
           retention-days: 90
@@ -83,7 +83,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KushMod-v0.3.7-test-logs
+          name: KushMod-v0.3.8-test-logs
           path: logs/*
           if-no-files-found: warn
           retention-days: 14

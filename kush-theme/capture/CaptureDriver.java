@@ -22,7 +22,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_MOVEMENT, CAPTURE_MOVEMENT, SET_PLAYER, CAPTURE_PLAYER,
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
-        START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
+        START_DEMO, WAIT_WORLD, PRESS_INPUT, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
         OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, DONE
     }
     private static final boolean ACCESSORIES_ONLY="1".equals(System.getenv("KUSH_CAPTURE_ACCESSORIES_ONLY"));
@@ -36,7 +36,7 @@ public final class CaptureDriver implements ClientModInitializer {
     public void onInitializeClient() {
         String loaded = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("fastclient-hud")
             .orElseThrow().getMetadata().getVersion().getFriendlyString();
-        if (!loaded.equals("1.0.72+kush.0.3.7")) throw new IllegalStateException("Wrong test JAR: " + loaded);
+        if (!loaded.equals("1.0.72+kush.0.3.8")) throw new IllegalStateException("Wrong test JAR: " + loaded);
         System.out.println("[KushCapture] loaded KushMod=" + loaded);
         ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
         System.out.println("[KushCapture] initialized");
@@ -117,16 +117,28 @@ public final class CaptureDriver implements ClientModInitializer {
                     if(client.level!=null && client.player!=null){
                         Class<?> pref=Class.forName("net.fastclient.hud.launcher.LauncherSkinPreference");
                         if(!(boolean)pref.getDeclaredMethod("isFastClientSkinEnabled").invoke(null))pref.getDeclaredMethod("toggle").invoke(null);
-                        enableHud();client.setScreen(null);waitTicks=120;state=State.CAPTURE_WORLD;
+                        enableHud();client.setScreen(null);equipTestArmor(client);waitTicks=120;state=State.PRESS_INPUT;
                     } else {
                         if(stableTicks++==0)pressDemo(client);
                         if(stableTicks>1800)throw new IllegalStateException("Demo test world did not load: "+client.screen);
                     }
                 }
+                case PRESS_INPUT -> {
+                    if(client.screen!=null){client.setScreen(null);waitTicks=40;return;}
+                    Class<?> tracker=Class.forName("net.fastclient.hud.gui.KushModernKeys");tracker.getMethod("clear").invoke(null);
+                    Method mouse=net.minecraft.client.MouseHandler.class.getDeclaredMethod("onButton",long.class,net.minecraft.client.input.MouseButtonInfo.class,int.class);mouse.setAccessible(true);
+                    for(int button=0;button<2;button++)for(int i=0;i<(button==0?7:3);i++){
+                        mouse.invoke(client.mouseHandler,client.getWindow().handle(),new net.minecraft.client.input.MouseButtonInfo(button,0),1);
+                        mouse.invoke(client.mouseHandler,client.getWindow().handle(),new net.minecraft.client.input.MouseButtonInfo(button,0),0);
+                    }
+                    if((int)tracker.getMethod("cps",int.class).invoke(null,0)!=7 || (int)tracker.getMethod("cps",int.class).invoke(null,1)!=3)throw new IllegalStateException("Rapid click events were missed");
+                    client.options.keyUp.setDown(true);waitTicks=2;state=State.CAPTURE_WORLD;
+                    System.out.println("[KushCapture] native mouse callback counted 7 left / 3 right rapid clicks; armor and WASD enabled");
+                }
                 case CAPTURE_WORLD -> {
                     if(client.screen!=null && client.screen.getClass().getName().endsWith("DemoIntroScreen")) {
                         client.setScreen(null);waitTicks=40;
-                    } else capture(client,"12-hud-in-game",ACCESSORIES_ONLY?State.OPEN_COSMETICS:State.OPEN_WORLD_OVERLAY);
+                    } else {capture(client,"12-hud-in-game",ACCESSORIES_ONLY?State.OPEN_COSMETICS:State.OPEN_WORLD_OVERLAY);client.options.keyUp.setDown(false);}
                 }
                 case OPEN_WORLD_OVERLAY -> {open(client,"net.fastclient.hud.gui.screens.HudOverlayScreen");waitTicks=50;state=State.CAPTURE_WORLD_OVERLAY;}
                 case CAPTURE_WORLD_OVERLAY -> capture(client,"13-right-shift-in-game",State.OPEN_WORLD_CONFIG);
@@ -147,8 +159,17 @@ public final class CaptureDriver implements ClientModInitializer {
                     if(!catalog().isEmpty()){waitTicks=80;state=State.CAPTURE_COSMETICS;}
                     else if(stableTicks++>600)throw new IllegalStateException("Kush site catalog never loaded");
                 }
-                case CAPTURE_COSMETICS -> capture(client,"25-kush-catalog",State.TRY_CAPE);
-                case TRY_CAPE -> {Object entry=catalog().get(0);local().getClass().getMethod("togglePreview",entry.getClass()).invoke(local(),entry);
+                case CAPTURE_COSMETICS -> {
+                    Field thumbs=Class.forName("net.fastclient.client.gui.KushCatalogThumbnails").getDeclaredField("READY");thumbs.setAccessible(true);
+                    java.util.Map<?,?> ready=(java.util.Map<?,?>)thumbs.get(null);
+                    if(ready.size()<6){if(stableTicks++>600)throw new IllegalStateException("Real catalog thumbnails never decoded");return;}
+                    Field rows=client.screen.getClass().getDeclaredField("rowRects");rows.setAccessible(true);
+                    java.util.List<?> cards=(java.util.List<?>)rows.get(client.screen);if(cards.size()<4)throw new IllegalStateException("Square cards were not laid out");
+                    System.out.println("[KushCapture] real catalog previews decoded="+ready.size()+"; visible square cards="+cards.size());
+                    capture(client,"25-kush-catalog",State.TRY_CAPE);
+                }
+                case TRY_CAPE -> {Object entry=catalog().get(0);selectEntry(client,entry);
+                    if((boolean)local().getClass().getMethod("isActive",String.class,String.class).invoke(local(),"cape",entry.getClass().getMethod("id").invoke(entry)))throw new IllegalStateException("Card selection equipped automatically");
                     Field yaw=client.screen.getClass().getDeclaredField("previewYaw");yaw.setAccessible(true);yaw.setFloat(client.screen,140f);
                     stableTicks=0;state=State.WAIT_CAPE;}
                 case WAIT_CAPE -> {
@@ -156,20 +177,24 @@ public final class CaptureDriver implements ClientModInitializer {
                     else if(stableTicks++>600)throw new IllegalStateException("Catalog cape preview did not resolve");
                 }
                 case CAPTURE_CAPE -> capture(client,"26-cape-preview",State.EQUIP_CAPE);
-                case EQUIP_CAPE -> {Object entry=catalog().get(0);local().getClass().getMethod("toggle",entry.getClass()).invoke(local(),entry);
-                    Field mode=client.screen.getClass().getDeclaredField("mode");mode.setAccessible(true);
-                    mode.set(client.screen,Enum.valueOf((Class)mode.getType(),"WARDROBE"));stableTicks=0;state=State.WAIT_EQUIP;}
+                case EQUIP_CAPE -> {clickRect(client,"equipRect");stableTicks=0;state=State.WAIT_EQUIP;}
                 case WAIT_EQUIP -> {
                     if(cape("forRender")!=null){System.out.println("[KushCapture] real cape equipped locally");waitTicks=80;state=State.CAPTURE_EQUIP;}
                     else if(stableTicks++>600)throw new IllegalStateException("Equipped cape did not resolve");
                 }
-                case CAPTURE_EQUIP -> capture(client,"27-cape-equipped",State.TRY_COSMETICA);
+                case CAPTURE_EQUIP -> {
+                    Object entry=catalog().get(0);String id=entry.getClass().getMethod("id").invoke(entry).toString();
+                    clickRect(client,"equipRect");
+                    if((boolean)local().getClass().getMethod("isActive",String.class,String.class).invoke(local(),"cape",id))throw new IllegalStateException("Equip button failed to unequip");
+                    clickRect(client,"equipRect");
+                    if(!(boolean)local().getClass().getMethod("isActive",String.class,String.class).invoke(local(),"cape",id))throw new IllegalStateException("Equip button failed to equip again");
+                    System.out.println("[KushCapture] card preview is separate from equipment; native Equip/Unequip button toggles correctly");
+                    capture(client,"27-cape-equipped",State.TRY_COSMETICA);
+                }
                 case TRY_COSMETICA -> {
                     Object found=null;for(Object entry:catalog())if(entry.getClass().getMethod("id").invoke(entry).toString().equals("cosmetica-cAPe9")){found=entry;break;}
                     if(found==null)throw new IllegalStateException("Real Cosmetica animated cape missing");
-                    local().getClass().getMethod("togglePreview",found.getClass()).invoke(local(),found);
-                    Field mode=client.screen.getClass().getDeclaredField("mode");mode.setAccessible(true);
-                    mode.set(client.screen,Enum.valueOf((Class)mode.getType(),"DRESS"));stableTicks=0;state=State.WAIT_COSMETICA;
+                    selectEntry(client,found);stableTicks=0;state=State.WAIT_COSMETICA;
                 }
                 case WAIT_COSMETICA -> {
                     Object preview=cape("forPreview");
@@ -187,7 +212,7 @@ public final class CaptureDriver implements ClientModInitializer {
                         Object item=list.stream().filter(e->{try{return e.getClass().getMethod("id").invoke(e).equals("cosmetica-"+id);}catch(Exception ex){throw new RuntimeException(ex);}}).findFirst().orElseThrow();
                         local().getClass().getMethod("toggle",item.getClass()).invoke(local(),item);
                     }
-                    Field mode=client.screen.getClass().getDeclaredField("mode");mode.setAccessible(true);mode.set(client.screen,Enum.valueOf((Class)mode.getType(),"WARDROBE"));
+                    Object wing=list.stream().filter(e->{try{return e.getClass().getMethod("id").invoke(e).equals("cosmetica-NHpZe");}catch(Exception ex){throw new RuntimeException(ex);}}).findFirst().orElseThrow();selectEntry(client,wing);
                     Field category=client.screen.getClass().getDeclaredField("selected");category.setAccessible(true);category.setInt(client.screen,7);
                     stableTicks=0;state=State.WAIT_ACCESSORIES;
                 }
@@ -347,14 +372,26 @@ public final class CaptureDriver implements ClientModInitializer {
         Object m=manager();int count=0;
         for(Object mod:(java.util.List<?>)m.getClass().getMethod("getModules").invoke(m)) {
             count++;String name=mod.getClass().getMethod("getName").invoke(mod).toString();
-            if(name.equalsIgnoreCase("FPS")||name.equalsIgnoreCase("Coordinates")||name.equalsIgnoreCase("Keystrokes")) {
+            if(java.util.Set.of("FPS","Coordinates","Keystrokes","CPSCounter","ArmorHUD").contains(name)) {
                 if(!(boolean)mod.getClass().getMethod("isEnabled").invoke(mod))m.getClass().getMethod("toggleModule",Class.forName("net.fastclient.hud.modules.Module")).invoke(m,mod);
-                int x=name.equalsIgnoreCase("FPS")?32:name.equalsIgnoreCase("Keystrokes")?420:770;
+                int x=switch(name){case "FPS"->32;case "Keystrokes"->330;case "CPSCounter"->560;case "ArmorHUD"->990;default->770;};
                 mod.getClass().getMethod("setHudPosition",int.class,int.class).invoke(mod,x,120);
             }
         }
         m.getClass().getMethod("saveConfig").invoke(m);
         System.out.println("[KushCapture] Verified modules="+count+" and enabled FPS/Coordinates/Keystrokes");
+    }
+    private static void equipTestArmor(Minecraft client) {
+        var slots=new net.minecraft.world.entity.EquipmentSlot[]{net.minecraft.world.entity.EquipmentSlot.HEAD,net.minecraft.world.entity.EquipmentSlot.CHEST,net.minecraft.world.entity.EquipmentSlot.LEGS,net.minecraft.world.entity.EquipmentSlot.FEET,net.minecraft.world.entity.EquipmentSlot.MAINHAND};
+        var items=new net.minecraft.world.item.Item[]{net.minecraft.world.item.Items.DIAMOND_HELMET,net.minecraft.world.item.Items.DIAMOND_CHESTPLATE,net.minecraft.world.item.Items.DIAMOND_LEGGINGS,net.minecraft.world.item.Items.DIAMOND_BOOTS,net.minecraft.world.item.Items.DIAMOND_SWORD};
+        for(int i=0;i<items.length;i++){var stack=new net.minecraft.world.item.ItemStack(items[i]);stack.setDamageValue(stack.getMaxDamage()/3);client.player.setItemSlot(slots[i],stack);}
+    }
+    private static void selectEntry(Minecraft client,Object entry)throws Exception {
+        Method select=client.screen.getClass().getDeclaredMethod("selectEntry",entry.getClass());select.setAccessible(true);select.invoke(client.screen,entry);
+    }
+    private static void clickRect(Minecraft client,String field)throws Exception {
+        Field f=client.screen.getClass().getDeclaredField(field);f.setAccessible(true);int[] r=(int[])f.get(client.screen);
+        client.screen.mouseClicked(new net.minecraft.client.input.MouseButtonEvent(r[0]+r[2]/2.0,r[1]+r[3]/2.0,new net.minecraft.client.input.MouseButtonInfo(0,0)),false);
     }
     private static void pressDemo(Minecraft client) throws Exception {
         System.out.println("[KushCapture] Demo screen="+client.screen.getClass().getName());

@@ -127,6 +127,14 @@ public final class KushAssets {
         if (source == null) throw new IllegalArgumentException("Invalid original PNG " + resource);
         if (id.equals(LABEL_K) || id.equals(PIXEL_RED_LABEL) || id.equals(PIXEL_GRAY_LABEL))
             source = KushImageResampler.trimAlpha(source);
+        if (id.equals(BACKGROUND)) {
+            // Prepare once, before resize/cache. Logos and world rendering stay colored.
+            for (int y=0;y<source.getHeight();y++) for (int x=0;x<source.getWidth();x++) {
+                int rgb=source.getRGB(x,y);
+                int gray=((rgb>>16&255)*2126+(rgb>>8&255)*7152+(rgb&255)*722+5000)/10000;
+                source.setRGB(x,y,(rgb&0xFF000000)|gray<<16|gray<<8|gray);
+            }
+        }
         SOURCES.put(id, source);
         return source;
     }

@@ -18,6 +18,14 @@ public final class KushCatalogProvider implements CosmeticProvider {
     private static volatile KushCatalogProvider current;
     public static KushCatalogProvider current(){return current;}
     public List<CatalogEntry> loaded(){return entries;}
+    private final Map<String,String> thumbnails=new ConcurrentHashMap<>();
+    private final Set<String> thumbnailAssets=ConcurrentHashMap.newKeySet();
+    public String thumbnail(String id){return thumbnails.get(id);}
+    private void rememberThumbnail(String id,JsonObject item) {
+        if(!item.has("thumbnail") || item.get("thumbnail").isJsonNull())return;
+        String ref=item.get("thumbnail").getAsString();
+        if(cdn(ref,"webp") || cdn(ref,"png")){thumbnails.put(id,ref);thumbnailAssets.add(ref);}
+    }
     private final Map<String,String> modelUrls=new ConcurrentHashMap<>();
     private final Map<String,JsonObject> models=new ConcurrentHashMap<>();
     private final Set<String> accessoryTextures=ConcurrentHashMap.newKeySet();
@@ -68,7 +76,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
     private byte[] get(String url,int limit)throws Exception {
         URI uri=URI.create(url);
         if(!"https".equals(uri.getScheme()) || !Set.of("kush-archives.com.br","api.cloaks.gg","cdn.cosmetica.cc").contains(uri.getHost()) || uri.getPort()!=-1 || uri.getUserInfo()!=null)throw new IOException("Unexpected asset host");
-        HttpRequest request=HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15)).header("User-Agent","Mozilla/5.0 KushMod/0.3.7").GET().build();
+        HttpRequest request=HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15)).header("User-Agent","Mozilla/5.0 KushMod/0.3.8").GET().build();
         HttpResponse<InputStream> response=http.send(request,HttpResponse.BodyHandlers.ofInputStream());
         try(InputStream stream=response.body()) {
             if(response.statusCode()!=200)throw new IOException("Catalog HTTP "+response.statusCode());
@@ -92,8 +100,8 @@ public final class KushCatalogProvider implements CosmeticProvider {
                 if(!"https".equals(uri.getScheme()) || !"cdn.cosmetica.cc".equals(uri.getHost()) || uri.getPort()!=-1 || uri.getUserInfo()!=null || uri.getQuery()!=null || uri.getFragment()!=null || !uri.getPath().matches("/assets/[a-f0-9]{3}/[a-f0-9-]{36}\\.png"))continue;
                 int frames=item.get("frames").getAsInt(),ticks=item.get("ticksPerFrame").getAsInt();
                 if(frames<1 || frames>256 || ticks<1 || ticks>200)continue;
-                cosmeticaFrames.put(ref,frames);
-                target.add(new CatalogEntry("cosmetica-"+id,"[Cosmetica] "+item.get("name").getAsString(),"cape",true,Attach.BODY,0,null,ref,null,null,null,null,null,null,null,null,null,null,null,frames>1?ticks*50:0,null));
+                cosmeticaFrames.put(ref,frames);rememberThumbnail("cosmetica-"+id,item);
+                target.add(new CatalogEntry("cosmetica-"+id,item.get("name").getAsString(),"cape",true,Attach.BODY,0,null,ref,null,null,null,null,null,null,null,null,null,null,null,frames>1?ticks*50:0,null));
             }catch(RuntimeException ignored){}
         }
     }
@@ -102,7 +110,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
         try {
             String payload="{\"query\":\"\",\"pageSize\":20,\"page\":1,\"attachments\":[\"cape\"],\"sortBy\":\"most-popular\"}";
             HttpRequest request=HttpRequest.newBuilder(URI.create("https://api.cloaks.gg/search/cosmetics"))
-                .timeout(Duration.ofSeconds(15)).header("Content-Type","application/json").header("User-Agent","Mozilla/5.0 KushMod/0.3.7")
+                .timeout(Duration.ofSeconds(15)).header("Content-Type","application/json").header("User-Agent","Mozilla/5.0 KushMod/0.3.8")
                 .POST(HttpRequest.BodyPublishers.ofString(payload)).build();
             HttpResponse<InputStream> response=http.send(request,HttpResponse.BodyHandlers.ofInputStream());
             try(InputStream input=response.body()) {
@@ -174,13 +182,14 @@ public final class KushCatalogProvider implements CosmeticProvider {
             for(JsonElement value:offset)if(!Double.isFinite(value.getAsDouble()) || Math.abs(value.getAsDouble())>128)throw new IllegalArgumentException();
             JsonObject metadata=new JsonObject();metadata.add("offset",offset.deepCopy());metadata.addProperty("attachment",attach.name());metadata.addProperty("flags",a.get("flags").getAsInt());
             String modelRef="cosmetica:model:"+id;modelUrls.put(modelRef,model);models.put(modelRef,metadata);accessoryTextures.add(texture);
+            rememberThumbnail("cosmetica-"+id,a);
             animations.put("cosmetica-"+id,new int[]{frames,a.get("frames").getAsInt()>0?ticks*50:0});
-            if(seen.add("cosmetica-"+id))target.add(new CatalogEntry("cosmetica-"+id,"[Cosmetica] "+name,category,true,attach,1|4|8,modelRef,texture,null,null,"none",null,null,null,null,null,null,null,null,null,null));
+            if(seen.add("cosmetica-"+id))target.add(new CatalogEntry("cosmetica-"+id,name,category,true,attach,1|4|8,modelRef,texture,null,null,"none",null,null,null,null,null,null,null,null,null,null));
         }catch(RuntimeException ignored){}
     }
     private JsonObject accessoryPage(String query,String attachment,int page)throws Exception {
         JsonObject payload=new JsonObject();payload.addProperty("query",query);payload.addProperty("pageSize",20);payload.addProperty("page",page);payload.addProperty("sortBy","most-popular");JsonArray filters=new JsonArray();filters.add(attachment);payload.add("attachments",filters);
-        HttpRequest request=HttpRequest.newBuilder(URI.create("https://api.cloaks.gg/search/cosmetics")).timeout(Duration.ofSeconds(15)).header("Content-Type","application/json").header("User-Agent","Mozilla/5.0 KushMod/0.3.7").POST(HttpRequest.BodyPublishers.ofString(payload.toString())).build();
+        HttpRequest request=HttpRequest.newBuilder(URI.create("https://api.cloaks.gg/search/cosmetics")).timeout(Duration.ofSeconds(15)).header("Content-Type","application/json").header("User-Agent","Mozilla/5.0 KushMod/0.3.8").POST(HttpRequest.BodyPublishers.ofString(payload.toString())).build();
         HttpResponse<InputStream> response=http.send(request,HttpResponse.BodyHandlers.ofInputStream());
         try(InputStream input=response.body()){if(response.statusCode()!=200)throw new IOException("Catalog HTTP "+response.statusCode());byte[] b=input.readNBytes(1024*1024+1);if(b.length>1024*1024)throw new IOException("Catalog limit");return JsonParser.parseString(new String(b,StandardCharsets.UTF_8)).getAsJsonObject();}
     }
@@ -284,10 +293,10 @@ public final class KushCatalogProvider implements CosmeticProvider {
         try {
             byte[] bytes;
             if(ref.startsWith("https://") || models.containsKey(ref)) {
-                String expected=hashes.get(ref);boolean cosmetica=cosmeticaFrames.containsKey(ref) || accessoryTextures.contains(ref) || models.containsKey(ref);
+                String expected=hashes.get(ref);boolean cosmetica=thumbnailAssets.contains(ref) || cosmeticaFrames.containsKey(ref) || accessoryTextures.contains(ref) || models.containsKey(ref);
                 if(expected==null && !cosmetica)throw new IOException("Unlisted remote asset");
                 String cacheKey=cosmetica?"cosmetica-"+HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(ref.getBytes(StandardCharsets.UTF_8))):expected;
-                Path disk=root.resolve("cache/"+cacheKey+(models.containsKey(ref)?".json":".png"));
+                Path disk=root.resolve("cache/"+cacheKey+(models.containsKey(ref)?".json":ref.endsWith(".webp")?".webp":".png"));
                 bytes=Files.exists(disk) && Files.size(disk)<=2*1024*1024?Files.readAllBytes(disk):null;
                 if(bytes==null || (!cosmetica && !HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected))) {
                     bytes=get(modelUrls.getOrDefault(ref,ref),2*1024*1024);
@@ -300,6 +309,9 @@ public final class KushCatalogProvider implements CosmeticProvider {
             }
             if(bytes.length>LIMIT)return null;
             if(models.containsKey(ref)) { JsonObject model=JsonParser.parseString(new String(bytes,StandardCharsets.UTF_8)).getAsJsonObject();if(!model.has("elements") || model.getAsJsonArray("elements").size()>2048)throw new IOException("Model element limit"); }
+            else if(thumbnailAssets.contains(ref) && ref.endsWith(".webp")) {
+                if(bytes.length<12 || bytes[0]!='R' || bytes[1]!='I' || bytes[2]!='F' || bytes[3]!='F' || bytes[8]!='W' || bytes[9]!='E' || bytes[10]!='B' || bytes[11]!='P')throw new IOException("Invalid WebP");
+            }
             else if(ref.endsWith(".png") || ref.startsWith("https://")) {
                 try(var input=javax.imageio.ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
                     var readers=javax.imageio.ImageIO.getImageReaders(input);if(!readers.hasNext())throw new IOException("Invalid PNG");

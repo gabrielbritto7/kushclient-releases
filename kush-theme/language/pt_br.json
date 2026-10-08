@@ -544,5 +544,9 @@
   "World Only Damaged": "No mundo só com dano",
   "World Range": "Alcance no mundo",
   "World Show Name": "Mostrar nome no mundo",
-  "Zoom Level": "Nível de zoom"
+  "Zoom Level": "Nível de zoom",
+  "Unequip": "Desequipar",
+  "Show CPS inside mouse buttons": "Mostrar CPS nos botões do mouse",
+  "Show held items": "Mostrar itens nas mãos",
+  "Show durability bars": "Mostrar barras de durabilidade"
 }

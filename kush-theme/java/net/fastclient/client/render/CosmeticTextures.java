@@ -40,7 +40,7 @@ public final class CosmeticTextures {
     private static final int MS_PER_TICK = 50;
     private static final Map<String,Long> PIXELS = new HashMap<>();
     private static long cachedPixels;
-    private static final Map<String, class_2960> READY = new ConcurrentHashMap<String, class_2960>();
+    private static final Map<String, class_2960> READY = new java.util.LinkedHashMap<String, class_2960>(64,.75f,true);
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
     private static final Map<String, Animation> ANIMATED = new ConcurrentHashMap<String, Animation>();
     private static final Map<String, String> SANITIZED = new HashMap<String, String>();
@@ -89,7 +89,7 @@ public final class CosmeticTextures {
             if(frames<1 || height%frames!=0)throw new IllegalArgumentException("Animation frame layout");
             long pixels=(long)width*height+(frames>1 && frameDelayMs>0?(long)width*(height/frames):0);
             if(pixels>16_777_216L)throw new IllegalArgumentException("Cosmetic texture memory budget");
-            while(!READY.isEmpty() && (READY.size()>=32 || cachedPixels+pixels>16_777_216L)) {
+            while(!READY.isEmpty() && (READY.size()>=64 || cachedPixels+pixels>16_777_216L)) {
                 String old=READY.keySet().iterator().next();
                 class_310.method_1551().method_1531().method_4615(READY.remove(old));
                 Animation animation=ANIMATED.remove(old);if(animation!=null)animation.master.close();

@@ -72,7 +72,7 @@ public final class KushLanguage {
         boolean hover=hit(x,y,w,h,mx,my);
         FastClientUI.borderedRoundedRect(g,x,y,w,h,0,hover?0xFF352228:0xFF1D1A1E,0xFF110F12);
         if(hover)g.method_25294(x+1,y+h-2,x+w-1,y+h-1,0xFFE53542);
-        class_2561 label=FastClientFonts.strong(code());float scale=1.5f;
+        class_2561 label=FastClientFonts.strong(code());float scale=1.15f;
         g.method_51448().pushMatrix();
         g.method_51448().translate(x+(w-font.method_27525(label)*scale)/2f,y+(h-9*scale)/2f);
         g.method_51448().scale(scale,scale);

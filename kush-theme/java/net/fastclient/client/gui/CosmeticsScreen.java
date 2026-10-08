@@ -85,6 +85,8 @@ extends class_437 {
     private int[] wardrobeRect = new int[4];
     private int[] dressRect = new int[4];
     private int[] clearRect = new int[4];
+    private int[] equipRect = new int[4];
+    private CatalogEntry selectedEntry;
     private int selected = 0;
     private volatile boolean loadingRemote;
     private volatile String remoteError="";
@@ -97,7 +99,7 @@ extends class_437 {
     private int[] previousRect=new int[4],nextRect=new int[4];
     private String searchText = "";
     private boolean searchFocused = false;
-    private Mode mode = Mode.DRESS;
+
     private int scroll = 0;
     private int maxScroll = 0;
     private int tabScroll = 0;
@@ -143,41 +145,18 @@ extends class_437 {
         net.fastclient.hud.gui.KushLanguage.drawButton(g,this.field_22793,languageX,y+6,36,22,mouseX,mouseY);
         this.languageRect=new int[]{languageX,y+6,36,22};
         int bodyX=x+10,bodyW=w-20;
-        this.renderModes(g,mouseX,mouseY,bodyX,y+32,bodyW);
-        this.renderTabs(g,mouseX,mouseY,bodyX,y+64,bodyW);
+        this.renderTabs(g,mouseX,mouseY,bodyX,y+34,bodyW);
         String queryKey=CATS.get(selected).key()+":"+searchText.trim();
         if(!queryKey.equals(observed)){observed=queryKey;queryChanged=System.currentTimeMillis();remotePage=1;remotePages=1;remoteError="";remoteGeneration++;}
         if(!queryKey.equals(requested) && System.currentTimeMillis()-queryChanged>400 && !loadingRemote){requested=queryKey;requestPage(1);}
-        int leftW=Math.max(80,Math.round(bodyW*.48f)),listY=y+121,listH=Math.max(30,h-173);
-        this.renderControls(g,mouseX,mouseY,bodyX,y+96,leftW);
+        int leftW=Math.max(80,Math.round(bodyW*.59f)),listY=y+91,listH=Math.max(30,h-125);
+        this.renderControls(g,mouseX,mouseY,bodyX,y+66,leftW);
         this.renderList(g,mouseX,mouseY,bodyX,listY,leftW,listH);
         previousRect=new int[]{bodyX,listY+listH+2,24,20};nextRect=new int[]{bodyX+leftW-24,listY+listH+2,24,20};
         for(int[] rect:new int[][]{previousRect,nextRect})g.method_25294(rect[0],rect[1],rect[0]+rect[2],rect[1]+rect[3],in(rect,mouseX,mouseY)?0xFF742332:0xFF25191F);
         this.drawText(g,"‹",previousRect[0]+9,previousRect[1]+6,-1);this.drawText(g,"›",nextRect[0]+9,nextRect[1]+6,-1);
         this.drawText(g,loadingRemote?(net.fastclient.hud.gui.KushLanguage.isPortuguese()?"Carregando...":"Loading..."):!remoteError.isEmpty()?remoteError:remotePage+" / "+remotePages,bodyX+30,listY+listH+8,0xFFB4A4AC);
-        this.renderPreview(g,mouseX,mouseY,bodyX+leftW+12,y+91,bodyW-leftW-12,h-99);
-        this.drawText(g,"Local preview · saved on this device",bodyX,y+h-16,0xFFB4A4AC);
-    }
-
-    private void renderModes(class_332 g, int mouseX, int mouseY, int x, int y, int w) {
-        int buttonY = y + 5;
-        int wardrobeW = this.width("Wardrobe") + 20;
-        int dressW = this.width("Dress Room") + 20;
-        this.wardrobeRect = new int[]{x, buttonY, wardrobeW, 22};
-        this.dressRect = new int[]{x + wardrobeW + 5, buttonY, dressW, 22};
-        this.renderModeButton(g, mouseX, mouseY, this.wardrobeRect, "Wardrobe", this.mode == Mode.WARDROBE);
-        this.renderModeButton(g, mouseX, mouseY, this.dressRect, "Dress Room", this.mode == Mode.DRESS);
-        String help = this.mode == Mode.DRESS ? "Try anything. Your preview is private and temporary." : "Equip catalog items. Saved locally for your Minecraft account.";
-        int helpX = x + w - this.width(help);
-        if (helpX > this.dressRect[0] + this.dressRect[2] + 10) {
-            this.drawText(g, help, helpX, y + 12, -6052957);
-        }
-    }
-
-    private void renderModeButton(class_332 g, int mouseX, int mouseY, int[] rect, String label, boolean active) {
-        boolean hover = CosmeticsScreen.in(rect, mouseX, mouseY);
-        g.method_25294(rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3], active ? -1890762 : (hover ? -14277082 : -15329770));
-        this.drawText(g, label, rect[0] + (rect[2] - this.width(label)) / 2, rect[1] + 7, active || hover ? -1 : -6052957);
+        this.renderPreview(g,mouseX,mouseY,bodyX+leftW+12,y+66,bodyW-leftW-12,h-74);
     }
 
     private void renderTabs(class_332 g, int mouseX, int mouseY, int x, int y, int w) {
@@ -237,50 +216,55 @@ extends class_437 {
         this.searchRect = new int[]{x, y, searchW, h};
     }
 
-    private void renderList(class_332 g, int mouseX, int mouseY, int x, int y, int w, int h) {
-        this.rowRects.clear();
-        Cat cat = CATS.get(this.selected);
-        List<Entry> entries = this.visibleEntries(cat);
-        if (entries.isEmpty()) {
-            this.drawText(g, this.catalogStatus(), x, y + 4, -6052957);
-            this.maxScroll = 0;
-            return;
-        }
-        int step = 22;
-        this.maxScroll = Math.max(0, entries.size() * step - h);
-        this.scroll = Math.min(this.scroll, this.maxScroll);
-        boolean overflow = this.maxScroll > 0;
-        int rowW = overflow ? w - 4 : w;
-        g.method_44379(x, y, x + w, y + h);
-        for (int i = 0; i < entries.size(); ++i) {
-            String status;
-            Entry e = entries.get(i);
-            int ry = y + i * step - this.scroll;
-            if (ry + 20 < y || ry > y + h) continue;
-            boolean actionable = this.mode == Mode.DRESS || e.owned() && FastClientCoreClient.canEquipOwn();
-            boolean hover = actionable && mouseX >= x && mouseX < x + rowW && mouseY >= ry && mouseY < ry + 20 && mouseY >= y && mouseY < y + h;
-            boolean active = this.mode == Mode.DRESS ? FastClientCoreClient.localEquip().isPreviewActive(cat.key(), e.entry().id()) : FastClientCoreClient.localEquip().isActive(cat.key(), e.entry().id());
-            g.method_25294(x, ry, x + rowW, ry + 20, hover ? -14277082 : -15329770);
-            if (active) {
-                g.method_25294(x, ry, x + 2, ry + 20, this.mode == Mode.DRESS ? -1890762 : -11751570);
+    private void renderList(class_332 g,int mouseX,int mouseY,int x,int y,int w,int h) {
+        rowRects.clear();
+        List<Entry> entries=visibleEntries(CATS.get(selected));
+        if(entries.isEmpty()){drawText(g,catalogStatus(),x,y+4,MUTED);maxScroll=0;return;}
+        int columns=Math.max(2,(w-4)/88),gap=6,card=(w-4-(columns-1)*gap)/columns,step=card+gap;
+        int rows=(entries.size()+columns-1)/columns;
+        maxScroll=Math.max(0,rows*step-gap-h);scroll=Math.min(scroll,maxScroll);
+        g.method_44379(x,y,x+w,y+h);
+        for(int i=0;i<entries.size();i++) {
+            Entry e=entries.get(i);CatalogEntry item=e.entry();
+            int cx=x+(i%columns)*step,cy=y+(i/columns)*step-scroll;
+            if(cy+card<=y || cy>=y+h)continue;
+            boolean chosen=selectedEntry!=null && item.id().equals(selectedEntry.id());
+            boolean active=FastClientCoreClient.localEquip().isActive(item.category(),item.id());
+            boolean hover=mouseX>=cx && mouseX<cx+card && mouseY>=Math.max(y,cy) && mouseY<Math.min(y+h,cy+card);
+            g.method_25294(cx,cy,cx+card,cy+card,hover?0xFF30252D:0xFF211B22);
+            drawOutline(g,cx,cy,card,card,chosen?ACCENT:active?GREEN:0xFF3A2C35);
+            int imageSize=card-10-22;
+            var thumbnail=KushCatalogThumbnails.get(item);
+            if(thumbnail!=null) {
+                var id=net.fastclient.client.render.CosmeticTextures.get("thumb-"+item.id(),thumbnail.png(),-1,0);
+                if(id!=null){int[] fit=net.fastclient.hud.gui.KushImageResampler.contain(thumbnail.width(),thumbnail.height(),imageSize,imageSize);
+                    g.method_25293(net.minecraft.class_10799.field_56883,id,cx+(card-fit[0])/2,cy+5+(imageSize-fit[1])/2,0,0,fit[0],fit[1],thumbnail.width(),thumbnail.height(),thumbnail.width(),thumbnail.height(),-1);
+                }
+            } else {
+                String label=KushCatalogThumbnails.failed(item.id())?"Preview unavailable":"Loading...";
+                g.method_51448().pushMatrix();g.method_51448().translate(cx+4,cy+imageSize/2f);g.method_51448().scale(.7f,.7f);
+                drawText(g,field_22793.method_27523(net.fastclient.hud.gui.KushLanguage.translate(label),(int)((card-8)/.7f)),0,0,MUTED);g.method_51448().popMatrix();
             }
-            status = this.mode == Mode.DRESS ? (active ? "trying on" : (e.owned() ? "owned" : "preview")) : (active ? "equipped" : (FastClientCoreClient.canEquipOwn() ? "" : "sign in"));
-            int labelWidth=Math.max(0,rowW-24-this.width(status));
-            String name=net.fastclient.hud.gui.KushLanguage.translate(e.entry().label());
-            this.drawText(g, this.field_22793.method_27523(name,labelWidth), x + 10, ry + 6, !actionable ? -6052957 : (active ? (this.mode == Mode.DRESS ? -1890762 : -11751570) : -1));
-            if (!status.isEmpty()) {
-                this.drawText(g, status, x + rowW - 6 - this.width(status), ry + 6, active ? (this.mode == Mode.DRESS ? -1890762 : -11751570) : -6052957);
-            }
-            int hitY=Math.max(y,ry),hitH=Math.max(0,Math.min(y+h,ry+20)-hitY);
-            this.rowRects.add(new Object[]{x, hitY, rowW, hitH, e});
+            String name=item.label().replace("[Cosmetica] ","");
+            g.method_51448().pushMatrix();g.method_51448().translate(cx+5,cy+card-19);g.method_51448().scale(.8f,.8f);
+            String trimmed=field_22793.method_27523(name,(int)((card-10)/.8f));drawText(g,trimmed,0,0,-1);g.method_51448().popMatrix();
+            if(active)g.method_25294(cx+5,cy+card-5,cx+card-5,cy+card-3,GREEN);
+            int hitY=Math.max(y,cy),hitH=Math.min(y+h,cy+card)-hitY;
+            rowRects.add(new Object[]{cx,hitY,card,hitH,e});
         }
         g.method_44380();
-        if (overflow) {
-            int barH = Math.max(12, Math.round((float)h * ((float)h / (float)(entries.size() * step))));
-            int barY = y + Math.round((float)(h - barH) * ((float)this.scroll / (float)this.maxScroll));
-            g.method_25294(x + w - 2, y, x + w, y + h, -15329770);
-            g.method_25294(x + w - 2, barY, x + w, barY + barH, -13421773);
-        }
+        if(maxScroll>0){int bar=Math.max(12,h*h/(rows*step));int by=y+(h-bar)*scroll/maxScroll;g.method_25294(x+w-2,by,x+w,by+bar,0xFF742332);}
+    }
+
+    private void selectEntry(CatalogEntry entry) {
+        if(selectedEntry!=null && selectedEntry.id().equals(entry.id()))return;
+        FastClientCoreClient.localEquip().clearPreview();selectedEntry=entry;
+        if(!FastClientCoreClient.localEquip().isActive(entry.category(),entry.id()))FastClientCoreClient.localEquip().togglePreview(entry);
+    }
+    private void toggleSelected() {
+        if(selectedEntry==null || !FastClientCoreClient.canEquipOwn())return;
+        FastClientCoreClient.localEquip().clearPreview();
+        FastClientCoreClient.localEquip().toggle(selectedEntry);
     }
 
     private List<Entry> visibleEntries(Cat cat) {
@@ -295,7 +279,7 @@ extends class_437 {
             if(e.id().startsWith("cosmetica-") && pageIds!=null && !pageIds.contains(e.id()))continue;
             boolean bl = isOwned = e.defaultOwned() || owned.contains(e.id());
             boolean serverMatch=e.id().startsWith("cosmetica-") && pageIds!=null;
-            if (this.mode == Mode.WARDROBE && !isOwned || !serverMatch && !q.isEmpty() && !e.label().toLowerCase(Locale.ROOT).contains(q) && !e.id().toLowerCase(Locale.ROOT).contains(q)) continue;
+            if (!serverMatch && !q.isEmpty() && !e.label().toLowerCase(Locale.ROOT).contains(q) && !e.id().toLowerCase(Locale.ROOT).contains(q)) continue;
             out.add(new Entry(e, isOwned));
         }
         return out;
@@ -314,7 +298,7 @@ extends class_437 {
             return "Catalog unavailable. Retrying...";
         }
         if (FastClientCoreClient.cache().isCatalogLoaded()) {
-            return this.mode == Mode.DRESS ? "No catalog items in this category." : "No owned items in this category.";
+            return "No catalog items in this category.";
         }
         return "Loading...";
     }
@@ -328,21 +312,18 @@ extends class_437 {
         int top = bodyY + 10;
         int bottom = bodyY + bodyH - 10;
         this.previewRect = new int[]{x, top, w, bottom - top};
-        String title = this.mode == Mode.DRESS ? "Dress Room" : "Your equipped look";
-        String subtitle = this.mode == Mode.DRESS ? "Preview owned and unowned items together" : "Local preview · saved on this device";
-        this.drawText(g, title, x + (w - this.width(title)) / 2, top + 3, -1);
-        if (this.width(subtitle) + 20 < w) {
-            this.drawText(g, subtitle, x + (w - this.width(subtitle)) / 2, top + 17, -6052957);
-        }
-        String clearLabel = this.mode == Mode.DRESS ? "Clear preview" : "Unequip all";
-        int clearW = this.width(clearLabel) + 18;
-        this.clearRect = new int[]{x + (w - clearW) / 2, bottom - 23, clearW, 20};
-        boolean clearEnabled = this.mode == Mode.DRESS ? FastClientCoreClient.localEquip().hasPreview() : FastClientCoreClient.canEquipOwn();
-        boolean clearHover = clearEnabled && CosmeticsScreen.in(this.clearRect, mouseX, mouseY);
-        g.method_25294(this.clearRect[0], this.clearRect[1], this.clearRect[0] + this.clearRect[2], this.clearRect[1] + this.clearRect[3], clearHover ? -14277082 : -15329770);
-        this.drawText(g, clearLabel, this.clearRect[0] + 9, this.clearRect[1] + 6, clearEnabled ? -1 : -6052957);
-        int modelTop = top + 30;
-        int modelBottom = bottom - 28;
+        boolean equipped=selectedEntry!=null && FastClientCoreClient.localEquip().isActive(selectedEntry.category(),selectedEntry.id());
+        String equipLabel=equipped?"Unequip":"Equip";
+        boolean canEquip=selectedEntry!=null && FastClientCoreClient.canEquipOwn();
+        int buttonW=Math.min(w-8,Math.max(90,width("Unequip all")+20));
+        equipRect=new int[]{x+(w-buttonW)/2,bottom-49,buttonW,22};
+        clearRect=new int[]{equipRect[0],bottom-23,buttonW,20};
+        for(int[] rect:new int[][]{equipRect,clearRect})g.method_25294(rect[0],rect[1],rect[0]+rect[2],rect[1]+rect[3],in(rect,mouseX,mouseY)?0xFF742332:0xFF2D2028);
+        drawText(g,equipLabel,equipRect[0]+(buttonW-width(equipLabel))/2,equipRect[1]+7,canEquip?-1:MUTED);
+        drawText(g,"Unequip all",clearRect[0]+(buttonW-width("Unequip all"))/2,clearRect[1]+6,-1);
+        if(selectedEntry!=null){String name=field_22793.method_27523(selectedEntry.label().replace("[Cosmetica] ",""),w-8);drawText(g,name,x+(w-width(name))/2,top+3,-1);}
+        int modelTop=top+18,modelBottom=bottom-55;
+        this.previewRect=new int[]{x,modelTop,w,Math.max(0,modelBottom-modelTop)};
         int size = Math.max(10, Math.round(Math.min((float)(modelBottom - modelTop) * 0.43f, (float)w * 0.46f) * this.previewZoom));
         Quaternionf pose = new Quaternionf().rotateZ((float)Math.PI);
         Quaternionf tilt = new Quaternionf().rotateX(this.previewPitch * ((float)Math.PI / 180));
@@ -362,11 +343,11 @@ extends class_437 {
         for (class_1304 slot : class_1304.values()) {
             player.method_5673(slot, this.field_22787.field_1724 == null ? class_1799.field_8037 : this.field_22787.field_1724.method_6118(slot).method_7972());
         }
-        PlayerCosmetics playerCosmetics = look = this.mode == Mode.DRESS ? FastClientCoreClient.localEquip().forPreview() : FastClientCoreClient.localEquip().forRender();
+        PlayerCosmetics playerCosmetics = look = FastClientCoreClient.localEquip().forPreview();
         if (!(look.shields().isEmpty() || player.method_6047().method_31574(class_1802.field_8255) || player.method_6079().method_31574(class_1802.field_8255))) {
             player.method_5673(class_1304.field_6171, new class_1799((class_1935)class_1802.field_8255));
         }
-        if (this.mode == Mode.DRESS) {
+        {
             FastClientCoreClient.beginCosmeticPreviewRender();
         }
         class_898 dispatcher = this.field_22787.method_1561();
@@ -379,7 +360,7 @@ extends class_437 {
         }
         finally {
             dispatcher.field_4686 = previousCamera;
-            if (this.mode == Mode.DRESS) {
+            {
                 FastClientCoreClient.endCosmeticPreviewRender();
             }
         }
@@ -410,12 +391,6 @@ extends class_437 {
                 this.method_25419();
                 return true;
             }
-            if (CosmeticsScreen.in(this.wardrobeRect, mx, my) || CosmeticsScreen.in(this.dressRect, mx, my)) {
-                this.mode = CosmeticsScreen.in(this.dressRect, mx, my) ? Mode.DRESS : Mode.WARDROBE;
-                this.scroll = 0;
-                this.searchFocused = false;
-                return true;
-            }
             for (int[] nArray : this.catRects) {
                 if (!CosmeticsScreen.in(nArray, mx, my)) continue;
                 if (this.selected != nArray[4]) {
@@ -432,21 +407,11 @@ extends class_437 {
             for (Object[] objectArray : this.rowRects) {
                 if (!CosmeticsScreen.in(new int[]{(Integer)objectArray[0], (Integer)objectArray[1], (Integer)objectArray[2], (Integer)objectArray[3]}, mx, my)) continue;
                 Entry entry = (Entry)objectArray[4];
-                if (this.mode == Mode.DRESS) {
-                    FastClientCoreClient.localEquip().togglePreview(entry.entry());
-                } else if (entry.owned() && FastClientCoreClient.canEquipOwn()) {
-                    FastClientCoreClient.localEquip().toggle(entry.entry());
-                }
+                selectEntry(entry.entry());
                 return true;
             }
-            if (CosmeticsScreen.in(this.clearRect, mx, my)) {
-                if (this.mode == Mode.DRESS) {
-                    FastClientCoreClient.localEquip().clearPreview();
-                } else if (FastClientCoreClient.canEquipOwn()) {
-                    FastClientCoreClient.localEquip().clear();
-                }
-                return true;
-            }
+            if(in(equipRect,mx,my)){toggleSelected();return true;}
+            if(in(clearRect,mx,my)){FastClientCoreClient.localEquip().clearPreview();FastClientCoreClient.localEquip().clear();return true;}
             if (CosmeticsScreen.in(this.previewRect, mx, my)) {
                 this.previewDragging = true;
                 return true;
@@ -527,13 +492,6 @@ extends class_437 {
         this.previewPlayer = null;
         FastClientCoreClient.localEquip().clearPreview();
         super.method_25432();
-    }
-
-    @Environment(value=EnvType.CLIENT)
-    private static enum Mode {
-        WARDROBE,
-        DRESS;
-
     }
 
     @Environment(value=EnvType.CLIENT)
