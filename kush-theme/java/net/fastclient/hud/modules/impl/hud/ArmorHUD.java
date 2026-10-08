@@ -42,6 +42,7 @@ extends Module {
         super("ArmorHUD", "Shows equipped armor with durability", Category.HUD);
         this.bgOpacity.visibleWhen(this.background::isEnabled);
         this.displayMode.visibleWhen(this.showDurability::isEnabled);
+        this.showBars.visibleWhen(this.showDurability::isEnabled);
     }
 
     @Override

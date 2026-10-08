@@ -234,6 +234,7 @@ extends class_437 {
             g.method_25294(cx,cy,cx+card,cy+card,hover?0xFF30252D:0xFF211B22);
             drawOutline(g,cx,cy,card,card,chosen?ACCENT:active?GREEN:0xFF3A2C35);
             int imageSize=card-10-22;
+            g.method_25294(cx+5,cy+5,cx+card-5,cy+5+imageSize,0xFF625965);
             var thumbnail=KushCatalogThumbnails.get(item);
             if(thumbnail!=null) {
                 var id=net.fastclient.client.render.CosmeticTextures.get("thumb-"+item.id(),thumbnail.png(),-1,0);

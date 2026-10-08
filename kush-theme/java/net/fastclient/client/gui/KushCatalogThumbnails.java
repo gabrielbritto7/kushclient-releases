@@ -46,6 +46,13 @@ public final class KushCatalogThumbnails {
             }
             if(cape){int unit=Math.max(1,source.getWidth()/64);BufferedImage face=new BufferedImage(10*unit,16*unit,BufferedImage.TYPE_INT_ARGB);
                 var g=face.createGraphics();try{g.drawImage(source,0,0,10*unit,16*unit,unit,unit,11*unit,17*unit,null);}finally{g.dispose();}source.flush();source=face;}
+            // Official WebP thumbnails contain eight vertical square viewing angles.
+            // Keep one complete view, rather than squeezing the whole strip into a card.
+            if(!cape && source.getHeight()>source.getWidth() && source.getHeight()%source.getWidth()==0 && source.getHeight()/source.getWidth()<=16) {
+                int size=source.getWidth();BufferedImage frame=new BufferedImage(size,size,BufferedImage.TYPE_INT_ARGB);
+                var g=frame.createGraphics();try{g.drawImage(source,0,0,size,size,0,0,size,size,null);}finally{g.dispose();}source.flush();source=frame;
+            }
+            source=KushImageResampler.trimAlpha(source);
             int[] fit=KushImageResampler.contain(source.getWidth(),source.getHeight(),128,128);
             BufferedImage small=KushImageResampler.resize(source,fit[0],fit[1]);source.flush();
             ByteArrayOutputStream out=new ByteArrayOutputStream();ImageIO.write(small,"PNG",out);small.flush();
