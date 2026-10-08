@@ -18,6 +18,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
     private static volatile KushCatalogProvider current;
     public static KushCatalogProvider current(){return current;}
     public List<CatalogEntry> loaded(){return entries;}
+    private final Map<String,String> modelUrls=new ConcurrentHashMap<>();
     private final Map<String,JsonObject> models=new ConcurrentHashMap<>();
     private final Set<String> accessoryTextures=ConcurrentHashMap.newKeySet();
     private final Map<String,int[]> animations=new ConcurrentHashMap<>();
@@ -172,9 +173,9 @@ public final class KushCatalogProvider implements CosmeticProvider {
             JsonArray offset=a.getAsJsonArray("offset");if(offset==null || offset.size()!=6)continue;
             for(JsonElement value:offset)if(!Double.isFinite(value.getAsDouble()) || Math.abs(value.getAsDouble())>128)throw new IllegalArgumentException();
             JsonObject metadata=new JsonObject();metadata.add("offset",offset.deepCopy());metadata.addProperty("attachment",attach.name());metadata.addProperty("flags",a.get("flags").getAsInt());
-            models.put(model,metadata);accessoryTextures.add(texture);
+            String modelRef="cosmetica:model:"+id;modelUrls.put(modelRef,model);models.put(modelRef,metadata);accessoryTextures.add(texture);
             animations.put("cosmetica-"+id,new int[]{frames,a.get("frames").getAsInt()>0?ticks*50:0});
-            if(seen.add("cosmetica-"+id))target.add(new CatalogEntry("cosmetica-"+id,"[Cosmetica] "+name,category,true,attach,1|4|8,model,texture,null,null,"none",null,null,null,null,null,null,null,null,null,null));
+            if(seen.add("cosmetica-"+id))target.add(new CatalogEntry("cosmetica-"+id,"[Cosmetica] "+name,category,true,attach,1|4|8,modelRef,texture,null,null,"none",null,null,null,null,null,null,null,null,null,null));
         }catch(RuntimeException ignored){}
     }
     private JsonObject accessoryPage(String query,String attachment,int page)throws Exception {
@@ -282,14 +283,14 @@ public final class KushCatalogProvider implements CosmeticProvider {
         byte[] cached=assets.get(ref);if(cached!=null)return cached;
         try {
             byte[] bytes;
-            if(ref.startsWith("https://")) {
+            if(ref.startsWith("https://") || models.containsKey(ref)) {
                 String expected=hashes.get(ref);boolean cosmetica=cosmeticaFrames.containsKey(ref) || accessoryTextures.contains(ref) || models.containsKey(ref);
                 if(expected==null && !cosmetica)throw new IOException("Unlisted remote asset");
                 String cacheKey=cosmetica?"cosmetica-"+HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(ref.getBytes(StandardCharsets.UTF_8))):expected;
                 Path disk=root.resolve("cache/"+cacheKey+(models.containsKey(ref)?".json":".png"));
                 bytes=Files.exists(disk) && Files.size(disk)<=2*1024*1024?Files.readAllBytes(disk):null;
                 if(bytes==null || (!cosmetica && !HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected))) {
-                    bytes=get(ref,2*1024*1024);
+                    bytes=get(modelUrls.getOrDefault(ref,ref),2*1024*1024);
                     if(!cosmetica && !HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(expected))throw new IOException("Texture hash mismatch");
                     Files.createDirectories(disk.getParent());Files.write(disk,bytes);
                 }

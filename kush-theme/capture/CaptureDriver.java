@@ -195,7 +195,7 @@ public final class CaptureDriver implements ClientModInitializer {
                         Object item=records.get(0);String json=(String)item.getClass().getMethod("modelJson").invoke(item);
                         if(json==null || !json.contains("kushCosmetica"))throw new IllegalStateException("Missing accessory transform "+slot);
                         Object model=Class.forName("net.fastclient.client.render.CosmeticModel").getMethod("get",String.class,String.class).invoke(null,item.getClass().getMethod("id").invoke(item),json);
-                        if(model==null)throw new IllegalStateException("Actual accessory geometry failed "+slot);
+                        if(model==null){ready=false;continue;}
                     }
                     if(ready){System.out.println("[KushCapture] real halo + hat + 4-frame hand flames + 6-frame wings equipped together");waitTicks=120;state=State.CAPTURE_ACCESSORIES;}
                     else if(stableTicks++>600)throw new IllegalStateException("Accessory equip did not resolve");
