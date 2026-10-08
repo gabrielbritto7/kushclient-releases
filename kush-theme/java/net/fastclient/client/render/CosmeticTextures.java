@@ -57,12 +57,16 @@ public final class CosmeticTextures {
         if (png == null) {
             return null;
         }
+        var provider=net.fastclient.core.equip.KushCatalogProvider.current();
+        int[] metadata=provider==null?null:provider.animation(cosmeticId);
+        if(metadata!=null){aspectRatio=-metadata[0];frameDelayMs=metadata[1];}
+        final int ratio=aspectRatio,delay=frameDelayMs;
         String key = CosmeticTextures.sanitize(cosmeticId) + "-" + CosmeticTextures.hash(png) + "-a" + aspectRatio + "-d" + frameDelayMs;
         class_2960 ready = READY.get(key);
         if (ready != null) {
             return ready;
         }
-        if (!CosmeticAssetWork.isCoolingDown(key) && PENDING.add(key) && !CosmeticImageDecode.submit(png, image -> CosmeticTextures.create(key, cosmeticId, image, aspectRatio, frameDelayMs), failure -> CosmeticTextures.failed(key, failure))) {
+        if (!CosmeticAssetWork.isCoolingDown(key) && PENDING.add(key) && !CosmeticImageDecode.submit(png, image -> CosmeticTextures.create(key, cosmeticId, image, ratio, delay), failure -> CosmeticTextures.failed(key, failure))) {
             PENDING.remove(key);
         }
         return null;
@@ -81,7 +85,8 @@ public final class CosmeticTextures {
         try {
             int width = master.method_4307();
             int height = master.method_4323();
-            int frames = width > 0 ? Math.max(1, aspectRatio * height / width) : 1;
+            int frames = aspectRatio<0?-aspectRatio:width>0?Math.max(1,aspectRatio*height/width):1;
+            if(frames<1 || height%frames!=0)throw new IllegalArgumentException("Animation frame layout");
             long pixels=(long)width*height+(frames>1 && frameDelayMs>0?(long)width*(height/frames):0);
             if(pixels>16_777_216L)throw new IllegalArgumentException("Cosmetic texture memory budget");
             while(!READY.isEmpty() && (READY.size()>=32 || cachedPixels+pixels>16_777_216L)) {

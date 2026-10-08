@@ -86,6 +86,15 @@ extends class_437 {
     private int[] dressRect = new int[4];
     private int[] clearRect = new int[4];
     private int selected = 0;
+    private volatile boolean loadingRemote;
+    private volatile String remoteError="";
+    private volatile int remotePages=1;
+    private int remotePage=1;
+    private String requested="";
+    private String observed="";
+    private long queryChanged;
+    private volatile long remoteGeneration;
+    private int[] previousRect=new int[4],nextRect=new int[4];
     private String searchText = "";
     private boolean searchFocused = false;
     private Mode mode = Mode.DRESS;
@@ -136,9 +145,16 @@ extends class_437 {
         int bodyX=x+10,bodyW=w-20;
         this.renderModes(g,mouseX,mouseY,bodyX,y+32,bodyW);
         this.renderTabs(g,mouseX,mouseY,bodyX,y+64,bodyW);
-        int leftW=Math.max(80,Math.round(bodyW*.48f)),listY=y+121,listH=Math.max(30,h-150);
+        String queryKey=CATS.get(selected).key()+":"+searchText.trim();
+        if(!queryKey.equals(observed)){observed=queryKey;queryChanged=System.currentTimeMillis();remotePage=1;remotePages=1;remoteError="";remoteGeneration++;}
+        if(!queryKey.equals(requested) && System.currentTimeMillis()-queryChanged>400 && !loadingRemote){requested=queryKey;requestPage(1);}
+        int leftW=Math.max(80,Math.round(bodyW*.48f)),listY=y+121,listH=Math.max(30,h-173);
         this.renderControls(g,mouseX,mouseY,bodyX,y+96,leftW);
         this.renderList(g,mouseX,mouseY,bodyX,listY,leftW,listH);
+        previousRect=new int[]{bodyX,listY+listH+2,24,20};nextRect=new int[]{bodyX+leftW-24,listY+listH+2,24,20};
+        for(int[] rect:new int[][]{previousRect,nextRect})g.method_25294(rect[0],rect[1],rect[0]+rect[2],rect[1]+rect[3],in(rect,mouseX,mouseY)?0xFF742332:0xFF25191F);
+        this.drawText(g,"‹",previousRect[0]+9,previousRect[1]+6,-1);this.drawText(g,"›",nextRect[0]+9,nextRect[1]+6,-1);
+        this.drawText(g,loadingRemote?(net.fastclient.hud.gui.KushLanguage.isPortuguese()?"Carregando...":"Loading..."):!remoteError.isEmpty()?remoteError:remotePage+" / "+remotePages,bodyX+30,listY+listH+8,0xFFB4A4AC);
         this.renderPreview(g,mouseX,mouseY,bodyX+leftW+12,y+91,bodyW-leftW-12,h-99);
         this.drawText(g,"Local preview · saved on this device",bodyX,y+h-16,0xFFB4A4AC);
     }
@@ -270,14 +286,25 @@ extends class_437 {
         Set<String> owned = FastClientCoreClient.cache().owned(this.field_22787.method_1548().method_44717());
         String q = this.searchText.trim().toLowerCase(Locale.ROOT);
         ArrayList<Entry> out = new ArrayList<Entry>();
-        for (CatalogEntry e : this.mode == Mode.WARDROBE ? FastClientCoreClient.cache().wardrobe(this.field_22787.method_1548().method_44717()) : FastClientCoreClient.cache().catalog()) {
+        var provider=net.fastclient.core.equip.KushCatalogProvider.current();
+        for (CatalogEntry e : provider!=null?provider.loaded():FastClientCoreClient.cache().catalog()) {
             boolean isOwned;
             if (!cat.key().equals(e.category())) continue;
+            Set<String> pageIds=provider==null?null:provider.pageIds(cat.key(),searchText,remotePage);
+            if(e.id().startsWith("cosmetica-") && pageIds!=null && !pageIds.contains(e.id()))continue;
             boolean bl = isOwned = e.defaultOwned() || owned.contains(e.id());
             if (this.mode == Mode.WARDROBE && !isOwned || !q.isEmpty() && !e.label().toLowerCase(Locale.ROOT).contains(q) && !e.id().toLowerCase(Locale.ROOT).contains(q)) continue;
             out.add(new Entry(e, isOwned));
         }
         return out;
+    }
+
+    private void requestPage(int page) {
+        String category=CATS.get(selected).key(),query=searchText.trim();
+        if(!Set.of("cape","hats","face","arm","boots","back","wings").contains(category))return;
+        var provider=net.fastclient.core.equip.KushCatalogProvider.current();if(provider==null)return;
+        long generation=remoteGeneration;loadingRemote=true;
+        Thread worker=new Thread(()->{try{int pages=provider.search(category,query,page);if(generation==remoteGeneration){remotePages=pages;remotePage=page;remoteError="";}}catch(Exception ex){if(generation==remoteGeneration)remoteError=net.fastclient.hud.gui.KushLanguage.isPortuguese()?"Sem conexão":"Offline";}finally{loadingRemote=false;}},"Kush-Catalog-Search");worker.setDaemon(true);worker.start();
     }
 
     private String catalogStatus() {
@@ -373,6 +400,8 @@ extends class_437 {
     public boolean method_25402(class_11909 event, boolean doubled) {
         if (event.method_74245() == 0) {
             if(in(languageRect,event.comp_4798(),event.comp_4799())) { net.fastclient.hud.gui.KushLanguage.toggle();return true; }
+            if(!loadingRemote && in(previousRect,event.comp_4798(),event.comp_4799()) && remotePage>1){requestPage(remotePage-1);return true;}
+            if(!loadingRemote && in(nextRect,event.comp_4798(),event.comp_4799()) && remotePage<remotePages){requestPage(remotePage+1);return true;}
             double my;
             double mx = event.comp_4798();
             if (CosmeticsScreen.in(this.closeRect, mx, my = event.comp_4799())) {

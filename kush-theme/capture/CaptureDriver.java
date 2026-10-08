@@ -23,7 +23,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, VERIFY_PERSISTENCE, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, CAPTURE_ACCESSORIES_FRONT, VERIFY_PERSISTENCE, DONE
     }
     private static State state = State.WAIT_TITLE;
     private static int waitTicks;
@@ -33,7 +33,7 @@ public final class CaptureDriver implements ClientModInitializer {
     public void onInitializeClient() {
         String loaded = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("fastclient-hud")
             .orElseThrow().getMetadata().getVersion().getFriendlyString();
-        if (!loaded.equals("1.0.72+kush.0.3.6")) throw new IllegalStateException("Wrong test JAR: " + loaded);
+        if (!loaded.equals("1.0.72+kush.0.3.7")) throw new IllegalStateException("Wrong test JAR: " + loaded);
         System.out.println("[KushCapture] loaded KushMod=" + loaded);
         ClientTickEvents.END_CLIENT_TICK.register(CaptureDriver::tick);
         System.out.println("[KushCapture] initialized");
@@ -173,12 +173,41 @@ public final class CaptureDriver implements ClientModInitializer {
                         System.out.println("[KushCapture] real Cosmetica animated cape decoded, six frames / 250ms");waitTicks=80;state=State.CAPTURE_COSMETICA;
                     }else if(stableTicks++>600)throw new IllegalStateException("Cosmetica cape did not resolve");
                 }
-                case CAPTURE_COSMETICA -> capture(client,"28-cosmetica-animated-cape",State.VERIFY_PERSISTENCE);
+                case CAPTURE_COSMETICA -> capture(client,"28-cosmetica-animated-cape",State.TRY_ACCESSORIES);
+                case TRY_ACCESSORIES -> {
+                    local().getClass().getMethod("clearPreview").invoke(local());
+                    Object provider=Class.forName("net.fastclient.core.equip.KushCatalogProvider").getMethod("current").invoke(null);
+                    java.util.List<?> list=(java.util.List<?>)provider.getClass().getMethod("loaded").invoke(provider);
+                    for(String id:new String[]{"hQtyJ","7Qgsq","QNifj","NHpZe"}) {
+                        Object item=list.stream().filter(e->{try{return e.getClass().getMethod("id").invoke(e).equals("cosmetica-"+id);}catch(Exception ex){throw new RuntimeException(ex);}}).findFirst().orElseThrow();
+                        local().getClass().getMethod("toggle",item.getClass()).invoke(local(),item);
+                    }
+                    Field mode=client.screen.getClass().getDeclaredField("mode");mode.setAccessible(true);mode.set(client.screen,Enum.valueOf((Class)mode.getType(),"WARDROBE"));
+                    Field category=client.screen.getClass().getDeclaredField("selected");category.setAccessible(true);category.setInt(client.screen,7);
+                    stableTicks=0;state=State.WAIT_ACCESSORIES;
+                }
+                case WAIT_ACCESSORIES -> {
+                    Object look=local().getClass().getMethod("forRender").invoke(local());
+                    boolean ready=true;for(String slot:new String[]{"hats","face","arm","wings"}) {
+                        java.util.List<?> records=(java.util.List<?>)look.getClass().getMethod(slot).invoke(look);if(records.size()!=1){ready=false;continue;}
+                        Object item=records.get(0);String json=(String)item.getClass().getMethod("modelJson").invoke(item);
+                        if(json==null || !json.contains("kushCosmetica"))throw new IllegalStateException("Missing accessory transform "+slot);
+                        Object model=Class.forName("net.fastclient.client.render.CosmeticModel").getMethod("get",String.class,String.class).invoke(null,item.getClass().getMethod("id").invoke(item),json);
+                        if(model==null)throw new IllegalStateException("Actual accessory geometry failed "+slot);
+                    }
+                    if(ready){System.out.println("[KushCapture] real halo + hat + 4-frame hand flames + 6-frame wings equipped together");waitTicks=120;state=State.CAPTURE_ACCESSORIES;}
+                    else if(stableTicks++>600)throw new IllegalStateException("Accessory equip did not resolve");
+                }
+                case CAPTURE_ACCESSORIES -> capture(client,"29-accessories-back",State.CAPTURE_ACCESSORIES_FRONT);
+                case CAPTURE_ACCESSORIES_FRONT -> {
+                    Field yaw=client.screen.getClass().getDeclaredField("previewYaw");yaw.setAccessible(true);yaw.setFloat(client.screen,-25f);
+                    capture(client,"30-accessories-front",State.VERIFY_PERSISTENCE);
+                }
                 case VERIFY_PERSISTENCE -> {
                     Path dir=client.gameDirectory.toPath().resolve("config/kushmod/cosmetics");
                     try(var files=Files.list(dir)) {
                         Path loadout=files.filter(p->p.getFileName().toString().startsWith("loadout-")).findFirst().orElseThrow();
-                        if(!Files.readString(loadout).contains("kush-site-"))throw new IllegalStateException("Cape selection was not persisted");
+                        if(!Files.readString(loadout).contains("cosmetica-NHpZe") || !Files.readString(loadout).contains("cosmetica-QNifj"))throw new IllegalStateException("Cape selection was not persisted");
                     }
                     client.setScreen(null);
                     if((boolean)local().getClass().getMethod("hasPreview").invoke(local()))throw new IllegalStateException("Preview leaked after screen close");
