@@ -25,6 +25,7 @@ public final class CaptureDriver implements ClientModInitializer {
         START_DEMO, WAIT_WORLD, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
         OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, DONE
     }
+    private static final boolean ACCESSORIES_ONLY="1".equals(System.getenv("KUSH_CAPTURE_ACCESSORIES_ONLY"));
     private static State state = State.WAIT_TITLE;
     private static int waitTicks;
     private static int stableTicks;
@@ -56,7 +57,7 @@ public final class CaptureDriver implements ClientModInitializer {
                         if (++stableTicks >= 80) state = State.CAPTURE_MAIN;
                     } else stableTicks = 0;
                 }
-                case CAPTURE_MAIN -> capture(client, "01-main-menu", State.SET_TOOL_HOVER);
+                case CAPTURE_MAIN -> capture(client, "01-main-menu", ACCESSORIES_ONLY?State.START_DEMO:State.SET_TOOL_HOVER);
                 case SET_MAIN_HOVER -> { cursor(client,640,327);waitTicks=35;state=State.CAPTURE_MAIN_HOVER; }
                 case CAPTURE_MAIN_HOVER -> capture(client,"16-main-menu-hover",State.SET_TOOL_HOVER);
                 case SET_TOOL_HOVER -> { cursor(client,1046,42);waitTicks=35;state=State.CAPTURE_TOOL_HOVER; }
@@ -107,6 +108,8 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case CAPTURE_LONG_CONFIG -> capture(client,"19-long-module-header",State.START_DEMO);
                 case START_DEMO -> {
+                    Class<?> pref=Class.forName("net.fastclient.hud.launcher.LauncherSkinPreference");
+                    if((boolean)pref.getDeclaredMethod("isFastClientSkinEnabled").invoke(null))pref.getDeclaredMethod("toggle").invoke(null);
                     client.setScreen(new TitleScreen());
                     waitTicks=60;state=State.WAIT_WORLD;stableTicks=0;
                 }
@@ -123,7 +126,7 @@ public final class CaptureDriver implements ClientModInitializer {
                 case CAPTURE_WORLD -> {
                     if(client.screen!=null && client.screen.getClass().getName().endsWith("DemoIntroScreen")) {
                         client.setScreen(null);waitTicks=40;
-                    } else capture(client,"12-hud-in-game",State.OPEN_WORLD_OVERLAY);
+                    } else capture(client,"12-hud-in-game",ACCESSORIES_ONLY?State.OPEN_COSMETICS:State.OPEN_WORLD_OVERLAY);
                 }
                 case OPEN_WORLD_OVERLAY -> {open(client,"net.fastclient.hud.gui.screens.HudOverlayScreen");waitTicks=50;state=State.CAPTURE_WORLD_OVERLAY;}
                 case CAPTURE_WORLD_OVERLAY -> capture(client,"13-right-shift-in-game",State.OPEN_WORLD_CONFIG);
