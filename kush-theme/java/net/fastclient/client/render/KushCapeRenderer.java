@@ -37,7 +37,7 @@ public final class KushCapeRenderer {
         stack.method_46416(0,state.field_53410?.15f:0,!state.field_53418.method_7960()?.22f:.14f);
         if(state.field_53410)stack.method_22907(new org.joml.Quaternionf().rotationX(.35f));
         final boolean bright=config.preserveBrightness();
-        queue.method_73529(0).method_73483(stack,bright?class_12249.method_75984(texture,false):class_12249.method_76000(texture),(pose,vc)->mesh(vc,pose,light,points));
+        queue.method_73529(0).method_73483(stack,bright?KushCapeRenderTypes.bright(texture):class_12249.method_76000(texture),(pose,vc)->mesh(vc,pose,light,points));
         stack.method_22909();return true;
     }
     private static void vertex(class_4588 vc,class_4587.class_4665 pose,int light,float x,float y,float z,float u,float v,float nx,float ny,float nz){vc.method_56824(pose,x,y,z).method_1336(255,255,255,255).method_22913(u,v).method_22922(class_4608.field_21444).method_60803(light).method_60831(pose,nx,ny,nz);}
@@ -48,10 +48,10 @@ public final class KushCapeRenderer {
             float v0=(1+16*i/(float)n)/32,v1=(1+16*(i+1)/(float)n)/32;
             float normY=-(z1-z0),normZ=y1-y0,len=(float)Math.sqrt(normY*normY+normZ*normZ);normY/=len;normZ/=len;
             // Outside/back: primary 10 x 16 cape face. Inside: second vanilla face.
-            vertex(vc,pose,light,x0-half,y0,z0+thickness,1/64f,v0,0,normY,normZ);
-            vertex(vc,pose,light,x1-half,y1,z1+thickness,1/64f,v1,0,normY,normZ);
-            vertex(vc,pose,light,x1+half,y1,z1+thickness,11/64f,v1,0,normY,normZ);
-            vertex(vc,pose,light,x0+half,y0,z0+thickness,11/64f,v0,0,normY,normZ);
+            vertex(vc,pose,light,x0-half,y0,z0+thickness,11/64f,v0,0,normY,normZ);
+            vertex(vc,pose,light,x1-half,y1,z1+thickness,11/64f,v1,0,normY,normZ);
+            vertex(vc,pose,light,x1+half,y1,z1+thickness,1/64f,v1,0,normY,normZ);
+            vertex(vc,pose,light,x0+half,y0,z0+thickness,1/64f,v0,0,normY,normZ);
             vertex(vc,pose,light,x0+half,y0,z0,12/64f,v0,0,-normY,-normZ);
             vertex(vc,pose,light,x1+half,y1,z1,12/64f,v1,0,-normY,-normZ);
             vertex(vc,pose,light,x1-half,y1,z1,22/64f,v1,0,-normY,-normZ);

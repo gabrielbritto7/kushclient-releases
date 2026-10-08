@@ -11,7 +11,7 @@ public final class KushWaveyBridge {
     private static Method settingsFactory,layerGetter;
     private static Object wavey;
     private static boolean warned;
-    public static int submittedFrames;
+    public static int submittedFrames,texturedFrames;
     private KushWaveyBridge() {}
     public static boolean installed(){return PRESENT;}
     public static boolean active(class_10055 state){

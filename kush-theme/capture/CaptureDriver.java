@@ -23,7 +23,7 @@ public final class CaptureDriver implements ClientModInitializer {
         SET_UTILITY, CAPTURE_UTILITY, OPEN_OVERLAY, CAPTURE_OVERLAY,
         OPEN_VANILLA, CAPTURE_VANILLA, OPEN_INSTALLED, CAPTURE_INSTALLED, OPEN_CONFIG, CAPTURE_CONFIG, ENABLE_CONFIG, CAPTURE_ACTIVE_CONFIG, OPEN_DROPDOWN, CAPTURE_DROPDOWN, OPEN_LONG_CONFIG, CAPTURE_LONG_CONFIG,
         START_DEMO, WAIT_WORLD, PRESS_INPUT, CAPTURE_WORLD, OPEN_WORLD_OVERLAY, CAPTURE_WORLD_OVERLAY,
-        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, OPEN_CPS_RGB, CAPTURE_CPS_RGB, OPEN_KEYS_RGB, CAPTURE_KEYS_RGB, OPEN_PHYSICS, CAPTURE_PHYSICS, SCROLL_PHYSICS, CAPTURE_PHYSICS_MORE, SET_PHYSICS_EN, CAPTURE_PHYSICS_EN, PREPARE_CLOTH, WAIT_CLOTH, CLOTH_FRAMES, PHYSICS_OFF, CAPTURE_PHYSICS_OFF, OPEN_WORLD_CAPE, CAPTURE_WORLD_CAPE, STOP_WORLD_CAPE, CAPTURE_WORLD_CAPE_STILL, WAVEY_SETUP, CAPTURE_WAVEY_SETUP, OPEN_WAVEY_NATIVE, CAPTURE_WAVEY_NATIVE, WAVEY_RETURN_WORLD, WAVEY_DISABLE, CAPTURE_WAVEY_DISABLED, WAVEY_PAUSE, CAPTURE_WAVEY_PAUSE, DONE
+        OPEN_WORLD_CONFIG, CAPTURE_WORLD_CONFIG, SCROLL_KEYSTROKES, CAPTURE_KEYSTROKES_MORE, OPEN_ARMOR_CONFIG, CAPTURE_ARMOR_CONFIG, OPEN_PAUSE, CAPTURE_PAUSE, OPEN_RESET, CAPTURE_RESET, OPEN_PRESETS, CAPTURE_PRESETS, SET_EN, CAPTURE_PRESETS_EN, OPEN_CONFIG_EN, CAPTURE_CONFIG_EN, OPEN_COSMETICS, WAIT_CATALOG, CAPTURE_COSMETICS, TRY_CAPE, WAIT_CAPE, CAPTURE_CAPE, EQUIP_CAPE, WAIT_EQUIP, CAPTURE_EQUIP, TRY_COSMETICA, WAIT_COSMETICA, CAPTURE_COSMETICA, TRY_ACCESSORIES, WAIT_ACCESSORIES, CAPTURE_ACCESSORIES, SET_ACCESSORIES_FRONT, CAPTURE_ACCESSORIES_FRONT, REQUEST_PAGE2, WAIT_PAGE2, CAPTURE_PAGE2, VERIFY_PERSISTENCE, VERIFY_CACHED_RESTART, OPEN_CPS_RGB, CAPTURE_CPS_RGB, OPEN_KEYS_RGB, CAPTURE_KEYS_RGB, OPEN_PHYSICS, CAPTURE_PHYSICS, SCROLL_PHYSICS, CAPTURE_PHYSICS_MORE, SET_PHYSICS_EN, CAPTURE_PHYSICS_EN, PREPARE_CLOTH, WAIT_CLOTH, CLOTH_FRAMES, PHYSICS_OFF, CAPTURE_PHYSICS_OFF, OPEN_WORLD_CAPE, CAPTURE_WORLD_CAPE, STOP_WORLD_CAPE, CAPTURE_WORLD_CAPE_STILL, CAPTURE_WAVEY_PREVIEW, WAVEY_SETUP, CAPTURE_WAVEY_SETUP, OPEN_WAVEY_NATIVE, CAPTURE_WAVEY_NATIVE, WAVEY_SCROLL_NATIVE, CAPTURE_WAVEY_NATIVE_MORE, WAVEY_RETURN_WORLD, WAVEY_DISABLE, CAPTURE_WAVEY_DISABLED, WAVEY_PAUSE, CAPTURE_WAVEY_PAUSE, DONE
     }
     private static final boolean ACCESSORIES_ONLY="1".equals(System.getenv("KUSH_CAPTURE_ACCESSORIES_ONLY"));
     private static final boolean WAVEY_ONLY="1".equals(System.getenv("KUSH_CAPTURE_WAVEY"));
@@ -342,7 +342,7 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case WAIT_CLOTH -> {
                     if(cape("forRender")==null){if(stableTicks++>500)throw new IllegalStateException("Own cape missing");return;}
-                    waitTicks=35;clothFrame=0;state=WAVEY_ONLY?State.WAVEY_SETUP:State.CLOTH_FRAMES;
+                    waitTicks=35;clothFrame=0;state=WAVEY_ONLY?State.CAPTURE_WAVEY_PREVIEW:State.CLOTH_FRAMES;
                 }
                 case CLOTH_FRAMES -> {
                     Field field=Class.forName("net.fastclient.client.render.KushCapeRenderer").getDeclaredField("MOTION");field.setAccessible(true);
@@ -368,6 +368,8 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case CAPTURE_WORLD_CAPE -> {
                     if(WAVEY_ONLY){
+                        int textured=Class.forName("net.fastclient.client.render.KushWaveyBridge").getField("texturedFrames").getInt(null);
+                        if(textured<20)throw new IllegalStateException("Wavey cape texture not submitted: "+textured);
                         int frames=Class.forName("net.fastclient.client.render.KushWaveyBridge").getField("submittedFrames").getInt(null);
                         if(frames<20)throw new IllegalStateException("Official Wavey did not render Kush cape: "+frames);
                         Object solver=Class.forName("dev.tr7zw.waveycapes.versionless.CapeHolder").getMethod("getSimulation").invoke(client.player);
@@ -384,6 +386,7 @@ public final class CaptureDriver implements ClientModInitializer {
                 }
                 case STOP_WORLD_CAPE -> {client.options.keyUp.setDown(false);waitTicks=80;state=State.CAPTURE_WORLD_CAPE_STILL;}
                 case CAPTURE_WORLD_CAPE_STILL -> capture(client,WAVEY_ONLY?"53-wavey-idle-in-game":"41-cape-idle-in-game",WAVEY_ONLY?State.WAVEY_DISABLE:State.DONE);
+                case CAPTURE_WAVEY_PREVIEW -> capture(client,"49-wavey-equipped-preview",State.WAVEY_SETUP);
                 case WAVEY_SETUP -> {
                     Class<?> bridge=Class.forName("net.fastclient.client.render.KushWaveyBridge");
                     if(!(boolean)bridge.getMethod("installed").invoke(null))throw new IllegalStateException("Wavey official missing");
@@ -399,9 +402,12 @@ public final class CaptureDriver implements ClientModInitializer {
                     client.screen.mouseClicked(new net.minecraft.client.input.MouseButtonEvent((x+12)*client.getWindow().getGuiScaledWidth()/(double)(int)Class.forName("net.fastclient.hud.gui.DisplaySpace").getMethod("width").invoke(null),(y+12)*client.getWindow().getGuiScaledHeight()/(double)(int)Class.forName("net.fastclient.hud.gui.DisplaySpace").getMethod("height").invoke(null),new net.minecraft.client.input.MouseButtonInfo(0,0)),false);
                     if(client.screen==waveyParent)throw new IllegalStateException("Native settings button did not open Wavey");
                     System.out.println("[KushCapture] Wavey original settings opened by native Kush button: "+client.screen.getClass().getName());
+                    org.lwjgl.glfw.GLFW.glfwSetCursorPos(client.getWindow().handle(),10,10);
                     waitTicks=45;state=State.CAPTURE_WAVEY_NATIVE;
                 }
-                case CAPTURE_WAVEY_NATIVE -> capture(client,"51-wavey-official-settings",State.WAVEY_RETURN_WORLD);
+                case CAPTURE_WAVEY_NATIVE -> capture(client,"51-wavey-official-settings",State.WAVEY_SCROLL_NATIVE);
+                case WAVEY_SCROLL_NATIVE -> {client.screen.mouseScrolled(client.getWindow().getGuiScaledWidth()/2.0,client.getWindow().getGuiScaledHeight()/2.0,0,-5);waitTicks=30;state=State.CAPTURE_WAVEY_NATIVE_MORE;}
+                case CAPTURE_WAVEY_NATIVE_MORE -> capture(client,"51b-wavey-official-settings-more",State.WAVEY_RETURN_WORLD);
                 case WAVEY_RETURN_WORLD -> {client.setScreen(null);state=State.OPEN_WORLD_CAPE;}
                 case WAVEY_DISABLE -> {module("CapePhysics").getClass().getMethod("setEnabled",boolean.class).invoke(module("CapePhysics"),false);waitTicks=45;state=State.CAPTURE_WAVEY_DISABLED;}
                 case CAPTURE_WAVEY_DISABLED -> {

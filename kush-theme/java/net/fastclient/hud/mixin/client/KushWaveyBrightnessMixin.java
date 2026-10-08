@@ -24,7 +24,8 @@ public abstract class KushWaveyBrightnessMixin {
             class_2960 texture=(class_2960)wrapper.getClass().getMethod("getCapeTexture").invoke(wrapper);
             if(texture==null)return;
             if(kush$info==null)kush$info=info.getClass().getConstructors()[0];
-            ci.setReturnValue(kush$info.newInstance(this,class_12249.method_75984(texture,false),false));
+            net.fastclient.client.render.KushWaveyBridge.texturedFrames++;
+            ci.setReturnValue(kush$info.newInstance(this,net.fastclient.client.render.KushCapeRenderTypes.bright(texture),false));
         }catch(ReflectiveOperationException error){throw new IllegalStateException("Kush cape brightness adapter",error);}
     }
 }
