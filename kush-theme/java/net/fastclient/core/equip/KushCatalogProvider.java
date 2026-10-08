@@ -146,10 +146,10 @@ public final class KushCatalogProvider implements CosmeticProvider {
         HttpResponse<InputStream> response=http.send(request,HttpResponse.BodyHandlers.ofInputStream());
         try(InputStream input=response.body()){if(response.statusCode()!=200)throw new IOException("Catalog HTTP "+response.statusCode());byte[] b=input.readNBytes(1024*1024+1);if(b.length>1024*1024)throw new IOException("Catalog limit");return JsonParser.parseString(new String(b,StandardCharsets.UTF_8)).getAsJsonObject();}
     }
-    private void savePages()throws IOException {JsonArray a=new JsonArray();pages.values().forEach(a::add);atomic(root.resolve("cosmetica-accessories.json"),a.toString());}
+    private void savePages()throws IOException {JsonArray a=new JsonArray();pages.forEach((key,value)->{JsonObject copy=value.deepCopy();copy.addProperty("_kushPageKey",key);a.add(copy);});atomic(root.resolve("cosmetica-accessories.json"),a.toString());}
     private void loadAccessories(List<CatalogEntry> target) {
         Path file=root.resolve("cosmetica-accessories.json");
-        try{if(Files.exists(file) && Files.size(file)<16*1024*1024){int n=0;for(JsonElement e:JsonParser.parseString(Files.readString(file)).getAsJsonArray()){JsonObject o=e.getAsJsonObject();pages.put("cached-"+n++,o);addAccessories(target,o);addCosmetica(target,o);}}}catch(Exception ignored){}
+        try{if(Files.exists(file) && Files.size(file)<16*1024*1024){int n=0;for(JsonElement e:JsonParser.parseString(Files.readString(file)).getAsJsonArray()){JsonObject o=e.getAsJsonObject();pages.put(o.has("_kushPageKey")?o.get("_kushPageKey").getAsString():"cached-"+n++,o);addAccessories(target,o);addCosmetica(target,o);}}}catch(Exception ignored){}
         for(String[] spec:new String[][]{{"","head"},{"","body"},{"","arm"},{"","leg"},{"wings","body"},{"halo","head"}})try {
             JsonObject result=accessoryPage(spec[0],spec[1],1);pages.put(spec[0]+":"+spec[1]+":1",result);addAccessories(target,result);
         }catch(Exception e){org.slf4j.LoggerFactory.getLogger("Kush").debug("Accessory catalog unavailable; using cache");}
@@ -165,7 +165,7 @@ public final class KushCatalogProvider implements CosmeticProvider {
         Set<String> ids=new HashSet<>();for(JsonElement row:result.getAsJsonArray("results")){JsonObject o=row.getAsJsonObject();JsonObject item=o.has("accessory")?o.getAsJsonObject("accessory"):o.has("animatedTextureCosmetic")?o.getAsJsonObject("animatedTextureCosmetic"):null;if(item!=null)ids.add("cosmetica-"+item.get("id").getAsString());}
         pageIds.put(category+":"+query.trim()+":"+page,Set.copyOf(ids));
         entries=List.copyOf(next);resolved=false;
-        pages.put(term+":"+attachment+":"+page,result);while(pages.size()>100)pages.remove(pages.keySet().iterator().next());savePages();
+        pages.put(term+":"+attachment+":"+page,result);while(pages.size()>100){String discard=null;for(var pair:pages.entrySet()){boolean equipped=false;for(JsonElement row:pair.getValue().getAsJsonArray("results")){JsonObject o=row.getAsJsonObject();JsonObject a=o.has("accessory")?o.getAsJsonObject("accessory"):o.has("animatedTextureCosmetic")?o.getAsJsonObject("animatedTextureCosmetic"):null;if(a!=null && selected.contains("cosmetica-"+a.get("id").getAsString())){equipped=true;break;}}if(!equipped){discard=pair.getKey();break;}}if(discard==null)break;pages.remove(discard);}savePages();
         return result.has("estimatedPages")?Math.max(page,result.get("estimatedPages").getAsInt()):page;
     }
 

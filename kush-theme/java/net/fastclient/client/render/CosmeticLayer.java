@@ -66,6 +66,13 @@ import org.slf4j.LoggerFactory;
 @Environment(value=EnvType.CLIENT)
 public class CosmeticLayer
 extends class_3887<class_10055, class_591> {
+    private boolean slim;
+    private static final Map<String,com.google.gson.JsonObject> SOURCE_CACHE=new java.util.LinkedHashMap<>();
+    private static com.google.gson.JsonObject source(String json){
+        com.google.gson.JsonObject cached=SOURCE_CACHE.get(json);if(cached!=null)return cached;
+        if(SOURCE_CACHE.size()>=64)SOURCE_CACHE.remove(SOURCE_CACHE.keySet().iterator().next());
+        cached=com.google.gson.JsonParser.parseString(json).getAsJsonObject();SOURCE_CACHE.put(json,cached);return cached;
+    }
     private static final Logger LOGGER = LoggerFactory.getLogger((String)"fastclientcore");
     private static final AtomicBoolean LOGGED_FIRST_RENDER = new AtomicBoolean(false);
     private static final AtomicBoolean WARNED_PARTICLE_AURA = new AtomicBoolean(false);
@@ -153,6 +160,7 @@ extends class_3887<class_10055, class_591> {
         if (cosmetics == null) {
             return;
         }
+        slim=state.field_53520!=null && state.field_53520.comp_1629()==net.minecraft.class_7920.field_41122;
         class_591 model = (class_591)this.method_17165();
         float age = state.field_53328;
         int hatIndex = 0;
@@ -273,13 +281,15 @@ extends class_3887<class_10055, class_591> {
         if (model == null || texture == null || !bone.field_3665) {
             return;
         }
-        com.google.gson.JsonObject source=com.google.gson.JsonParser.parseString(modelJson).getAsJsonObject();
+        com.google.gson.JsonObject source=source(modelJson);
         com.google.gson.JsonObject meta=source.getAsJsonObject("kushCosmetica");
         if(meta!=null){
             var offset=meta.getAsJsonArray("offset");String attachment=meta.get("attachment").getAsString();
             float dx=attachment.equals("LEFT_ARM")?-1:attachment.equals("RIGHT_ARM")?1:0;
             float dy=attachment.equals("HEAD")?4:attachment.endsWith("ARM")?-6:-8;
-            ox=(offset.get(0).getAsFloat()+dx)/16;oy=(offset.get(1).getAsFloat()+dy)/16-0.25f;oz=offset.get(2).getAsFloat()/16;
+            int index=slim?3:0;
+            if(slim)dx+=attachment.equals("LEFT_ARM")?0.5f:attachment.equals("RIGHT_ARM")?-0.5f:0;
+            ox=(offset.get(index).getAsFloat()+dx)/16;oy=(offset.get(index+1).getAsFloat()+dy)/16-0.25f;oz=offset.get(index+2).getAsFloat()/16;
             mirror=false;extraRotation=null;scale=1;grow=1;rotationPivotY=0;honorHeadDisplay=false;
         }
         CosmeticModel.HeadDisplay head = honorHeadDisplay ? model.headDisplay() : null;

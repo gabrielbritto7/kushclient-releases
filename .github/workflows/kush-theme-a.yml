@@ -31,7 +31,7 @@ jobs:
           python3 kush-theme/apply.py
           cd base
           chmod +x gradlew
-          ./gradlew --no-daemon --max-workers=2 build
+          ./gradlew --no-daemon --max-workers=2 --refresh-dependencies build
       - name: Assemble KushMod while preserving existing modules
         run: python3 kush-theme/assemble.py
       - name: Prepare capture client
