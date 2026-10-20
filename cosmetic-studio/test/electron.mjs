@@ -1,0 +1,66 @@
+import {_electron as electron} from 'playwright-core';
+import assert from 'node:assert/strict';
+import {mkdir,writeFile,readFile,stat} from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import * as F from 'fflate';
+import {jar,glbFixture} from './fixtures.mjs';
+import K from '../src/core.mjs';
+const root=fileURLToPath(new URL('..',import.meta.url)),out=path.join(root,'test-output');
+await mkdir(out,{recursive:true});
+const jarPath=path.join(out,'KUSHMOD-fixture.jar'),glbPath=path.join(out,'textured-cube.glb');
+await writeFile(jarPath,jar());await writeFile(glbPath,glbFixture());
+let app,failed=false;const errors=[];
+async function exists(file){for(let i=0;i<120;i++){try{if((await stat(file)).size)return;}catch{}await new Promise(r=>setTimeout(r,250));}throw Error('Download não salvo: '+file);}
+try{
+ const executablePath=process.env.KUSH_TEST_EXE_PATH;
+ app=await electron.launch({...(executablePath?{executablePath,args:[]}:{args:[root]}),timeout:60000,env:{...process.env,ELECTRON_ENABLE_LOGGING:'1'}});
+ const page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
+ await page.waitForSelector('#viewport canvas',{timeout:60000});await page.waitForTimeout(1500);
+ await app.evaluate(({session},dir)=>{
+  session.defaultSession.removeAllListeners('will-download');
+  session.defaultSession.on('will-download',(_event,item)=>item.setSavePath(require('node:path').join(dir,item.getFilename())));
+ },out);
+ await page.locator('[data-preset="hat"]').click();
+ await page.waitForFunction(()=>document.querySelectorAll('#cubeList option').length===3);
+ await page.locator('#cubeList').selectOption('0');
+ await page.locator('#sx').fill('14');await page.locator('#sx').dispatchEvent('change');
+ await page.locator('#duplicateCube').click();assert.equal(await page.locator('#cubeList option').count(),4);
+ await page.locator('#undo').click();assert.equal(await page.locator('#cubeList option').count(),3);
+ await page.locator('#model').setInputFiles(glbPath);
+ await page.waitForFunction(()=>!document.querySelector('#glbPanel').hidden&&!document.querySelector('#convert').disabled,{timeout:60000});
+ await page.locator('#detail').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('input',{bubbles:true}));});
+ await page.locator('#convert').click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Conversão concluída'),{timeout:60000});
+ assert.equal(await page.locator('#exportAssets').isEnabled(),true);
+ await page.locator('#anchor').selectOption('left_arm');
+ await page.locator('#px').fill('-7.25');await page.locator('#px').dispatchEvent('change');
+ await page.locator('#ry').fill('25');await page.locator('#ry').dispatchEvent('change');
+ await page.locator('#scale').evaluate(e=>{e.value='75';e.dispatchEvent(new Event('input',{bubbles:true}));});
+ await page.locator('#displayName').fill('GLB validado');await page.locator('#cosmeticId').fill('glb_validado');
+ await page.locator('#category').selectOption('wings');
+ await page.locator('#jar').setInputFiles(jarPath);
+ await page.waitForFunction(()=>!document.querySelector('#exportJar').disabled);
+ await page.locator('#exportAssets').click();
+ const zipPath=path.join(out,'glb_validado-KUSH.zip');await exists(zipPath);
+ const assets=F.unzipSync(await readFile(zipPath));
+ for(const name of ['MODEL.JSON','TEXTURE.PNG','CATALOG.JSON'])assert.ok(assets[name],name);
+ const model=K.checkModel(assets['MODEL.JSON']);K.checkPNG(assets['TEXTURE.PNG']);
+ const group=model.groups[0];assert.deepEqual(group.rotation,[0,25,0]);assert.equal(group.origin[0],.75);assert.equal(model.kushStudio.attach,'LEFT_ARM');
+ const item=JSON.parse(new TextDecoder().decode(assets['CATALOG.JSON'])).items[0];assert.equal(item.category,'wings');assert.equal(item.flags,525);
+ await page.locator('#exportJar').click();
+ const newJarPath=path.join(out,'KUSHMOD-fixture-glb_validado.jar');await exists(newJarPath);
+ const original=F.unzipSync(await readFile(jarPath)),generated=K.readJar(new Uint8Array(await readFile(newJarPath)));
+ assert.equal(generated.catalog.items.length,2);assert.deepEqual(generated.files['net/fastclient/Untouched.class'],original['net/fastclient/Untouched.class']);
+ assert.deepEqual(generated.files['assets/kush/cosmetics/custom_glb_validado/model.json'],assets['MODEL.JSON']);
+ await page.locator('#projectSave').click();const projectPath=path.join(out,'glb_validado.kushstudio');await exists(projectPath);
+ await page.locator('[data-preset="backpack"]').click();await page.waitForFunction(()=>document.querySelector('#cosmeticId').value==='minha_mochila');
+ await page.locator('#project').setInputFiles(projectPath);await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Projeto aberto'));
+ assert.equal(await page.locator('#cosmeticId').inputValue(),'glb_validado');assert.equal(await page.locator('#anchor').inputValue(),'left_arm');assert.equal(await page.locator('#ry').inputValue(),'25');
+ await page.screenshot({path:path.join(out,'studio.png'),fullPage:true});
+ assert.deepEqual(errors,[],'renderer errors');
+ const report={result:'passed',platform:process.platform,packaged:!!executablePath,checks:['3D canvas','cube editing and undo','embedded-texture GLB import','voxel conversion','avatar transform','MODEL/CATALOG/TEXTURE export','JAR preservation','save and reopen project'],cubes:model.elements.length,attachment:item.attach,flags:item.flags};
+ await writeFile(path.join(out,'validation.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+}catch(error){failed=true;console.error(error);if(app){try{const p=await app.firstWindow();console.error('UI STATUS:',await p.locator('#status').textContent());await p.screenshot({path:path.join(out,'failure.png'),fullPage:true});}catch{}}}
+finally{if(app)await app.close();}
+if(failed)process.exitCode=1;
