@@ -8,8 +8,8 @@ import {jar,glbFixture} from './fixtures.mjs';
 import K from '../src/core.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url)),out=path.join(root,'test-output');
 await mkdir(out,{recursive:true});
-const jarPath=path.join(out,'KUSHMOD-fixture.jar'),glbPath=path.join(out,'textured-cube.glb');
-await writeFile(jarPath,jar());await writeFile(glbPath,glbFixture());
+const jarPath=path.join(out,'KUSHMOD-fixture.jar'),glbPath=path.join(out,'cosmetic-pack.glb'),mergedPath=path.join(out,'merged-pack.glb');
+await writeFile(jarPath,jar());await writeFile(glbPath,glbFixture({pack:true}));await writeFile(mergedPath,glbFixture({merged:true}));
 let app,failed=false;const errors=[];
 const watchdog=setTimeout(()=>{console.error('O teste do aplicativo excedeu 3 minutos.');app?.process()?.kill();process.exit(1);},180000);
 async function exists(file){for(let i=0;i<120;i++){try{if((await stat(file)).size)return;}catch{}await new Promise(r=>setTimeout(r,250));}throw Error('Download não salvo: '+file);}
@@ -17,7 +17,13 @@ try{
  const executablePath=process.env.KUSH_TEST_EXE_PATH;
  app=await electron.launch({...(executablePath?{executablePath,args:[]}:{args:[root]}),timeout:60000,env:{...process.env,ELECTRON_ENABLE_LOGGING:'1'}});
  const page=await app.firstWindow();page.setDefaultTimeout(20000);page.on('pageerror',error=>errors.push(error.message));
- await page.waitForSelector('#viewport canvas',{timeout:60000});await page.waitForTimeout(1500);
+ await page.waitForSelector('#viewport canvas',{timeout:60000});await page.locator('#viewport[data-skin="gabriel"]').waitFor();
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const defaultSkinImage=await page.locator('#viewport canvas').screenshot();
+ await page.locator('#skin').setInputFiles(path.join(root,'src/assets/gabriel-skin.png'));await page.locator('#viewport[data-skin="custom"]').waitFor();
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ assert.deepEqual(await page.locator('#viewport canvas').screenshot(),defaultSkinImage,'the uploaded and bundled Gabriel skin render identically');
+ await page.locator('#resetSkin').click();await page.locator('#viewport[data-skin="gabriel"]').waitFor();
  await app.evaluate(({session},dir)=>{
   session.defaultSession.removeAllListeners('will-download');
   session.defaultSession.on('will-download',(_event,item)=>item.setSavePath(dir+'/'+item.getFilename()));
@@ -28,8 +34,25 @@ try{
  await page.locator('#sx').fill('14');await page.locator('#sx').dispatchEvent('change');
  await page.locator('#duplicateCube').click();assert.equal(await page.locator('#cubeList option').count(),4);
  await page.locator('#undo').click();assert.equal(await page.locator('#cubeList option').count(),3);
+ await page.locator('#cubeList').selectOption(['0','1']);await page.locator('#deleteCube').click();assert.equal(await page.locator('#cubeList option').count(),1);
+ await page.locator('#undo').click();await page.waitForFunction(()=>document.querySelectorAll('#cubeList option').length===3);
+ await page.locator('#cubeList').selectOption(['1']);await page.locator('#keepCubes').click();assert.equal(await page.locator('#cubeList option').count(),1);
+ await page.locator('#undo').click();await page.waitForFunction(()=>document.querySelectorAll('#cubeList option').length===3);
+ await page.locator('#cubeAll').click();await page.locator('#deleteCube').click();assert.equal(await page.locator('#cubeList option').count(),3);assert.match(await page.locator('#status').textContent(),/pelo menos um/);
  await page.locator('#model').setInputFiles(glbPath);
- await page.waitForFunction(()=>!document.querySelector('#glbPanel').hidden&&!document.querySelector('#convert').disabled,{timeout:60000});
+ await page.waitForFunction(()=>document.querySelectorAll('#packList option').length===3&&!document.querySelector('#packList').disabled);
+ const ids=await page.locator('#packList option').evaluateAll(options=>options.map(option=>({value:option.value,label:option.textContent})));
+ await page.locator('#packList').selectOption([ids[0].value,ids[2].value]);await page.locator('#packDelete').click();
+ await page.waitForFunction(()=>document.querySelectorAll('#packList option').length===1&&!document.querySelector('#packList').disabled);
+ await page.locator('#undo').click();await page.waitForFunction(()=>document.querySelectorAll('#packList option').length===3&&!document.querySelector('#packList').disabled);
+ await page.locator('#model').setInputFiles(mergedPath);
+ await page.waitForFunction(()=>document.querySelectorAll('#packList option').length===1&&!document.querySelector('#packSplit').disabled);
+ await page.locator('#packSplit').click();await page.waitForFunction(()=>document.querySelectorAll('#packList option').length===2&&!document.querySelector('#packList').disabled);
+ await page.locator('#undo').click();await page.waitForFunction(()=>document.querySelectorAll('#packList option').length===1&&!document.querySelector('#packList').disabled);
+ await page.locator('#model').setInputFiles(glbPath);await page.waitForFunction(()=>document.querySelectorAll('#packList option').length===3&&!document.querySelector('#packList').disabled);
+ const keep=await page.locator('#packList option').evaluateAll(options=>options.find(option=>option.textContent.includes('Mochila')).value);
+ await page.locator('#packList').selectOption(keep);await page.locator('#packKeep').click();await page.waitForFunction(()=>document.querySelectorAll('#packList option').length===1&&!document.querySelector('#packList').disabled);
+ assert.match(await page.locator('#packList option').textContent(),/Mochila/);assert.match(await page.locator('#conversionInfo').textContent(),/^12 triângulos/);
  await page.locator('#detail').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('input',{bubbles:true}));});
  await page.locator('#convert').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Conversão concluída'),{timeout:60000});
@@ -46,7 +69,7 @@ try{
  const zipPath=path.join(out,'glb_validado-KUSH.zip');await exists(zipPath);
  const assets=F.unzipSync(await readFile(zipPath));
  for(const name of ['MODEL.JSON','TEXTURE.PNG','CATALOG.JSON'])assert.ok(assets[name],name);
- const model=K.checkModel(assets['MODEL.JSON']);K.checkPNG(assets['TEXTURE.PNG']);
+ const model=K.checkModel(assets['MODEL.JSON']);assert.equal(model.elements.length,296,'only the retained cosmetic reaches the export');K.checkPNG(assets['TEXTURE.PNG']);
  const group=model.groups[0];assert.deepEqual(group.rotation,[0,25,0]);assert.equal(group.origin[0],.75);assert.equal(model.kushStudio.attach,'LEFT_ARM');
  const item=JSON.parse(new TextDecoder().decode(assets['CATALOG.JSON'])).items[0];assert.equal(item.category,'wings');assert.equal(item.flags,525);assert.ok(assets[item.model]);assert.ok(assets[item.texture]);
  await page.locator('#exportJar').click();
@@ -60,8 +83,9 @@ try{
  assert.equal(await page.locator('#cosmeticId').inputValue(),'glb_validado');assert.equal(await page.locator('#anchor').inputValue(),'left_arm');assert.equal(await page.locator('#ry').inputValue(),'25');
  await page.screenshot({path:path.join(out,'studio.png'),fullPage:true});
  assert.deepEqual(errors,[],'renderer errors');
- const report={result:'passed',platform:process.platform,packaged:!!executablePath,checks:['3D canvas','cube editing and undo','embedded-texture GLB import','voxel conversion','avatar transform','MODEL/CATALOG/TEXTURE export','JAR preservation','save and reopen project'],cubes:model.elements.length,attachment:item.attach,flags:item.flags};
+ const report={result:'passed',platform:process.platform,packaged:!!executablePath,checks:['3D canvas','Gabriel default skin and reset','cube editing and undo','bulk cube deletion and keep selection','GLB pack multi-delete and undo','merged GLB separation and undo','keep one cosmetic before conversion','embedded-texture GLB import','voxel conversion','avatar transform','MODEL/CATALOG/TEXTURE export','JAR preservation','save and reopen project'],cubes:model.elements.length,attachment:item.attach,flags:item.flags};
  await writeFile(path.join(out,'validation.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }catch(error){failed=true;console.error(error);if(app){try{const p=await app.firstWindow();console.error('UI STATUS:',await p.locator('#status').textContent());await p.screenshot({path:path.join(out,'failure.png'),fullPage:true});}catch{}}}
 finally{if(app){let timer;await Promise.race([app.close(),new Promise(resolve=>{timer=setTimeout(()=>{app.process()?.kill();resolve();},10000);})]);clearTimeout(timer);}clearTimeout(watchdog);}
 if(failed)process.exitCode=1;
+

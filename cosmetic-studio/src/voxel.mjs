@@ -47,8 +47,9 @@ export async function imagePixels(texture,renderer){
  const data=new Uint8Array(raw.length);for(let y=0;y<h;y++)data.set(raw.subarray((h-1-y)*w*4,(h-y)*w*4),y*w*4);
  return {data,width:w,height:h};
 }
-export async function prepareMesh(root,renderer){
+export async function prepareMesh(root,renderer,{localSpace=false}={}){
  root.updateMatrixWorld(true);
+ const inverse=localSpace?root.matrixWorld.clone().invert():new T.Matrix4();
  const meshes=[],cache=new Map();let total=0;
  root.traverse(o=>{
   if(!o.isMesh||!o.visible)return;
@@ -70,13 +71,14 @@ export async function prepareMesh(root,renderer){
  const vertex=new T.Vector3(),uv=new T.Vector2();
  for(const mesh of meshes){
   const geometry=mesh.geometry,position=geometry.attributes.position,index=geometry.index,mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+  const matrix=new T.Matrix4().multiplyMatrices(inverse,mesh.matrixWorld);
   const limit=index?.count||position.count;
   for(let i=0;i<limit;i+=3){
    let materialIndex=0;
    if(Array.isArray(mesh.material)){const g=geometry.groups.find(g=>i>=g.start&&i<g.start+g.count);materialIndex=g?.materialIndex||0;}
    const material=mats[materialIndex];if(!material||material.visible===false)continue;
    const ids=[0,1,2].map(j=>index?index.getX(i+j):i+j);
-   const vertices=ids.map(id=>{if(mesh.getVertexPosition)mesh.getVertexPosition(id,vertex);else vertex.fromBufferAttribute(position,id);return vertex.clone().applyMatrix4(mesh.matrixWorld);});
+   const vertices=ids.map(id=>{if(mesh.getVertexPosition)mesh.getVertexPosition(id,vertex);else vertex.fromBufferAttribute(position,id);return vertex.clone().applyMatrix4(matrix);});
    const uvAttr=geometry.attributes[(material.map?.channel||0)?'uv'+material.map.channel:'uv'];
    const uvs=ids.map(id=>uvAttr?uv.fromBufferAttribute(uvAttr,id).clone():new T.Vector2());
    const colorAttr=material.vertexColors?geometry.attributes.color:null;
@@ -102,7 +104,7 @@ function pixelColor(item,bary){
  col.convertLinearToSRGB();
  return [col.r,col.g,col.b].map(v=>Math.min(255,Math.max(0,Math.round(v*31)/31*255|0)));
 }
-export async function voxelize(triangles,{resolution=20,maxCubes=2048,onProgress=()=>{},signal}={}){
+export async function voxelize(triangles,{resolution=20,maxCubes=2048,onProgress=()=>{},signal,preservePlacement=false}={}){
  if(!Number.isInteger(resolution)||resolution<6||resolution>48)throw Error('Detalhe deve ficar entre 6 e 48.');
  const bounds=new T.Box3();for(const t of triangles)for(const p of t.vertices)bounds.expandByPoint(p);
  const size=bounds.getSize(new T.Vector3()),longest=Math.max(size.x,size.y,size.z);
@@ -136,9 +138,10 @@ export async function voxelize(triangles,{resolution=20,maxCubes=2048,onProgress
  const atlasSize=Math.max(16,2**Math.ceil(Math.log2(Math.ceil(Math.sqrt(palette.length)))));
  const pixels=new Uint8ClampedArray(atlasSize*atlasSize*4);palette.forEach((color,i)=>pixels.set(color,i*4));
  const offsets={north:[0,0,-1],south:[0,0,1],east:[1,0,0],west:[-1,0,0],up:[0,1,0],down:[0,-1,0]};
- const targetSize=12,scale=targetSize/longest,unit=step*scale,elements=[];
+ const targetSize=12,scale=preservePlacement?1:targetSize/longest,unit=step*scale,elements=[];
  for(const cell of cells.values()){
-  const from=new T.Vector3(cell.x,cell.y,cell.z).multiplyScalar(step).add(min).sub(center).multiplyScalar(scale);
+  const from=new T.Vector3(cell.x,cell.y,cell.z).multiplyScalar(step).add(min);
+  if(!preservePlacement)from.sub(center).multiplyScalar(scale);
   const px=cell.colorIndex%atlasSize,py=Math.floor(cell.colorIndex/atlasSize);
   // A single atlas texel supplies each voxel's baked base color.
   const uv=[(px+.15)/atlasSize*16,(py+.15)/atlasSize*16,(px+.85)/atlasSize*16,(py+.85)/atlasSize*16];
@@ -149,3 +152,4 @@ export async function voxelize(triangles,{resolution=20,maxCubes=2048,onProgress
  onProgress(100);
  return {model:{credit:'GLB convertido no KUSH Cosmetic Studio',texture_size:[atlasSize,atlasSize],textures:{'1':'texture'},elements},pixels,width:atlasSize,height:atlasSize,cubes:elements.length,colors:palette.length};
 }
+

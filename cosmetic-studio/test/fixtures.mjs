@@ -20,16 +20,22 @@ export function jar(items=[{id:'original_hat',displayName:'Original',category:'h
  },{level:6});
 }
 export const options={id:'test_cosmetic',displayName:'Teste GLB',category:'back',attach:'BODY',flags:525,replace:false};
-export function glbFixture(){
- const geometry=new T.BoxGeometry(1,1,1).toNonIndexed(),position=geometry.attributes.position.array,normal=geometry.attributes.normal.array,uv=geometry.attributes.uv.array,texture=png();
+export function glbFixture({pack=false,merged=false}={}){
+ const geometry=new T.BoxGeometry(1,1,1).toNonIndexed();
+ if(merged){
+  const second=geometry.clone();geometry.translate(-2,0,0);second.translate(2,0,0);
+  for(const name of ['position','normal','uv']){const a=geometry.attributes[name],b=second.attributes[name],array=new Float32Array(a.array.length+b.array.length);array.set(a.array);array.set(b.array,a.array.length);geometry.setAttribute(name,new T.BufferAttribute(array,a.itemSize));}
+ }
+ geometry.computeBoundingBox();const position=geometry.attributes.position.array,normal=geometry.attributes.normal.array,uv=geometry.attributes.uv.array,texture=png();
  const arrays=[new Uint8Array(position.buffer),new Uint8Array(normal.buffer),new Uint8Array(uv.buffer),texture],views=[],segments=[];let size=0;
  for(const a of arrays){const padded=new Uint8Array(Math.ceil(a.length/4)*4);padded.set(a);views.push({buffer:0,byteOffset:size,byteLength:a.length});segments.push(padded);size+=padded.length;}
  const json={asset:{version:'2.0'},buffers:[{byteLength:size}],bufferViews:views,accessors:[
- {bufferView:0,componentType:5126,count:position.length/3,type:'VEC3',min:[-.5,-.5,-.5],max:[.5,.5,.5]},
+ {bufferView:0,componentType:5126,count:position.length/3,type:'VEC3',min:geometry.boundingBox.min.toArray(),max:geometry.boundingBox.max.toArray()},
  {bufferView:1,componentType:5126,count:normal.length/3,type:'VEC3'},
  {bufferView:2,componentType:5126,count:uv.length/2,type:'VEC2'}],
  images:[{bufferView:3,mimeType:'image/png'}],textures:[{source:0}],materials:[{pbrMetallicRoughness:{baseColorTexture:{index:0},metallicFactor:0,roughnessFactor:1}}],
- meshes:[{primitives:[{attributes:{POSITION:0,NORMAL:1,TEXCOORD_0:2},material:0}]}],nodes:[{mesh:0}],scenes:[{nodes:[0]}],scene:0};
+ meshes:[{primitives:[{attributes:{POSITION:0,NORMAL:1,TEXCOORD_0:2},material:0}]}],nodes:[{mesh:0,name:merged?'Pack unido':'Cosmético'}],scenes:[{nodes:[0]}],scene:0};
+ if(pack){json.nodes=[{mesh:0,name:'Chapéu',translation:[-3,0,0]},{mesh:0,name:'Mochila',translation:[0,0,0]},{mesh:0,name:'Asas',translation:[3,0,0]}];json.scenes=[{nodes:[0,1,2]}];}
  return binaryGLB(json,segments);
 }
 export function binaryGLB(json,segments=[]){
@@ -38,3 +44,4 @@ export function binaryGLB(json,segments=[]){
  view.setUint32(0,0x46546c67,true);view.setUint32(4,2,true);view.setUint32(8,total,true);view.setUint32(12,jsonBytes.length,true);view.setUint32(16,0x4e4f534a,true);out.set(jsonBytes,20);
  if(binSize){let at=20+jsonBytes.length;view.setUint32(at,binSize,true);view.setUint32(at+4,0x004e4942,true);at+=8;for(const b of segments){out.set(b,at);at+=b.length;}}return out;
 }
+

@@ -9,9 +9,10 @@ import * as F from 'fflate';
 import K from './core.mjs';
 import {ANCHORS,FACE_NAMES,createModel,fitModel,makeFit,simpleModel,disposeObject} from './model.mjs';
 import {inspectGLB,prepareMesh,voxelize} from './voxel.mjs';
+import {packParts,modelGroups,removeModelElements,removePackParts,normalizePack,restorePackEdit,splitPackParts} from './pack.mjs';
 const $=id=>document.getElementById(id),viewport=$('viewport');
-const state={model:null,texture:null,textureBytes:null,palette:false,fit:{position:[0,33,0],rotation:[0,0,0],scale:1,attach:'HEAD'},center:[0,0,0],naturalCenter:[0,0,0],dimensions:[0,0,0],jar:null,jarName:'KUSHMOD.jar',original:null,triangles:null,converted:false,selected:-1,revision:0,busy:false,history:[],controller:null};
-let cosmetic,convertedMesh,selectionBox,skinTexture,player,loadRevision=0,textureRevision=0,skinRevision=0;
+const state={model:null,texture:null,textureBytes:null,palette:false,fit:{position:[0,33,0],rotation:[0,0,0],scale:1,attach:'HEAD'},center:[0,0,0],naturalCenter:[0,0,0],dimensions:[0,0,0],jar:null,jarName:'KUSHMOD.jar',original:null,triangles:null,converted:false,selected:-1,selectedIndices:[],packSelection:[],selectionMode:'cube',retiredMeshes:new Set(),revision:0,busy:false,history:[],controller:null};
+let cosmetic,convertedMesh,selectionBox,selectionTargets=[],skinTexture,player,loadRevision=0,textureRevision=0,skinRevision=0;
 const renderer=new T.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setClearColor(0x16171e,0);renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.NoToneMapping;viewport.prepend(renderer.domElement);
 const scene=new T.Scene(),camera=new T.PerspectiveCamera(38,1,.1,2000);camera.position.set(46,30,-65);
@@ -31,23 +32,31 @@ gizmo.addEventListener('objectChange',()=>{
 const observer=new ResizeObserver(()=>{
  const w=viewport.clientWidth,h=viewport.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
 });observer.observe(viewport);
-renderer.setAnimationLoop(()=>{orbit.update();if(selectionBox&&convertedMesh?.visible)selectionBox.update();renderer.render(scene,camera);});
+renderer.setAnimationLoop(()=>{orbit.update();if(selectionBox?.visible){const bounds=new T.Box3();for(const target of selectionTargets)bounds.union(new T.Box3().setFromObject(target));selectionBox.box.copy(bounds);}renderer.render(scene,camera);});
 function say(message,kind='info'){$('status').textContent=message;$('status').dataset.kind=kind;}
 function dirty(){$('saveState').textContent='Alterações no projeto';updateButtons();}
 function change(){state.revision++;dirty();}
 function ready(){return !!(state.model&&state.textureBytes&&!state.busy&&(!state.original||state.converted));}
 function updateButtons(){
- for(const id of ['model','texture','project'])$(id).disabled=state.busy;
+ for(const id of ['model','texture','project','anchor','resetFit','px','py','pz','rx','ry','rz','scale','cubeList','packList','cx','cy','cz','sx','sy','sz','cubeColor'])$(id).disabled=state.busy;
  document.querySelectorAll('[data-preset]').forEach(button=>button.disabled=state.busy);
  $('exportAssets').disabled=!ready();$('exportJar').disabled=!ready()||!state.jar;
  $('convert').disabled=!state.triangles||state.busy;$('undo').disabled=!state.history.length||state.busy;
  $('addCube').disabled=state.busy||!!state.original&&!state.converted;
- for(const id of ['duplicateCube','deleteCube'])$(id).disabled=state.busy||state.selected<0;
+ $('cubeGroup').disabled=state.busy||!state.model;
+ $('duplicateCube').disabled=state.busy||state.selectedIndices.length!==1;
+ for(const id of ['deleteCube','keepCubes'])$(id).disabled=state.busy||!state.selectedIndices.length;
+ for(const id of ['cubeAll','cubeNone'])$(id).disabled=state.busy||!state.model;
+ for(const id of ['packAll','packNone','packSplit'])$(id).disabled=state.busy||!state.original;
+ for(const id of ['packDelete','packKeep'])$(id).disabled=state.busy||!state.packSelection.length;
 }
 function remember(){
- if(!state.model)return;
- state.history.push({model:structuredClone(state.model),fit:structuredClone(state.fit),center:state.center.slice(),palette:state.palette});
- if(state.history.length>30)state.history.shift();updateButtons();
+ if(!state.model&&!state.original)return null;
+ const previous={model:state.model?structuredClone(state.model):null,fit:structuredClone(state.fit),center:state.center.slice(),naturalCenter:state.naturalCenter.slice(),dimensions:state.dimensions.slice(),palette:state.palette,converted:state.converted,selected:state.selected,selectedIndices:state.selectedIndices.slice(),packSelection:state.packSelection.slice(),selectionMode:state.selectionMode};
+ state.history.push(previous);if(state.history.length>30)state.history.shift();updateButtons();return previous;
+}
+function restoreSnapshot(previous){
+ const {packEdit,...saved}=previous;if(packEdit)restorePackEdit(packEdit);Object.assign(state,saved);
 }
 function applyFit(){
  cosmetic.position.fromArray(state.fit.position);cosmetic.rotation.set(...state.fit.rotation.map(T.MathUtils.degToRad),'ZYX');cosmetic.scale.setScalar(state.fit.scale);
@@ -59,27 +68,54 @@ function syncFitFields(){
  $('scale').value=Math.round(state.fit.scale*100);$('scaleValue').value=Math.round(state.fit.scale*100)+'%';
 }
 function clearSelection(){
+ selectionTargets=[];
  if(selectionBox){scene.remove(selectionBox);selectionBox.geometry.dispose();selectionBox.material.dispose();selectionBox=null;}
 }
-function selectedCube(index){
- state.selected=index;$('cubeList').value=String(index);$('cubeEditor').hidden=index<0;
- clearSelection();
- if(index>=0&&state.model){
-  const e=state.model.elements[index];
+function highlight(objects){
+ clearSelection();selectionTargets=objects;
+ if(objects.length){const box=new T.Box3();for(const object of objects)box.union(new T.Box3().setFromObject(object));selectionBox=new T.Box3Helper(box,0xfa9caa);scene.add(selectionBox);}
+}
+function selectedCube(index,append=false){
+ const current=new Set(append?state.selectedIndices:[]);if(index>=0){if(append&&current.has(index))current.delete(index);else current.add(index);}
+ selectedCubes([...current]);
+}
+function selectedCubes(indices,{activate=true}={}){
+ state.selectedIndices=[...new Set(indices)].filter(index=>index>=0&&index<(state.model?.elements.length||0));
+ state.selected=state.selectedIndices.length===1?state.selectedIndices[0]:-1;
+ if(activate){state.selectionMode='cube';if(state.converted){$('original').checked=false;showComparison();}}
+ const selected=new Set(state.selectedIndices);for(const option of $('cubeList').options)option.selected=selected.has(Number(option.value));
+ $('cubeSelectionInfo').textContent=selected.size+' de '+(state.model?.elements.length||0)+' cubos selecionados';
+ $('cubeEditor').hidden=state.selected<0;
+ if(state.selected>=0){
+  const e=state.model.elements[state.selected];
   ['cx','cy','cz'].forEach((id,i)=>$(id).value=Number(((e.from[i]+e.to[i])/2).toFixed(4)));
   ['sx','sy','sz'].forEach((id,i)=>$(id).value=Number((e.to[i]-e.from[i]).toFixed(4)));
-  $('paintLabel').hidden=!state.palette;
-  if(state.palette)$('cubeColor').value=String(Math.floor(Object.values(e.faces)[0]?.uv[0]||0));
-  let target;convertedMesh?.traverse(o=>{if(o.isMesh&&o.userData.element===index)target=o;});
-  if(target){target.updateWorldMatrix(true,true);selectionBox=new T.BoxHelper(target,0xfa9caa);scene.add(selectionBox);}
+  $('paintLabel').hidden=!state.palette;if(state.palette)$('cubeColor').value=String(Math.floor(Object.values(e.faces)[0]?.uv[0]||0));
  }
+ if(state.selectionMode==='cube'){const targets=[];convertedMesh?.traverse(object=>{if(object.isMesh&&selected.has(object.userData.element))targets.push(object);});highlight(targets);}
  updateButtons();
+}
+function selectedPack(ids,{activate=true}={}){
+ const parts=packParts(state.original),available=new Set(parts.map(part=>part.id));state.packSelection=[...new Set(ids)].filter(id=>available.has(id));
+ const selected=new Set(state.packSelection);for(const option of $('packList').options)option.selected=selected.has(option.value);
+ $('packInfo').textContent=parts.length+' peças no pack · '+selected.size+' selecionadas';
+ if(activate){state.selectionMode='pack';$('original').checked=true;showComparison();}
+ if(state.selectionMode==='pack')highlight(parts.filter(part=>selected.has(part.id)).map(part=>part.object));
+ updateButtons();
+}
+function refreshPackList(){
+ const list=$('packList');list.replaceChildren();$('packPanel').hidden=!state.original;
+ for(const part of packParts(state.original)){const option=document.createElement('option');option.value=part.id;option.textContent=part.name+' · '+part.triangles+' triângulos';option.title=option.textContent;list.append(option);}
+ selectedPack(state.packSelection,{activate:false});
 }
 function refreshList(){
  const select=$('cubeList');select.replaceChildren();
- (state.model?.elements||[]).forEach((e,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=(i+1)+'. '+(e.name||'Cubo '+(i+1));select.append(option);});
+ const groups=modelGroups(state.model),names=new Map(),groupSelect=$('cubeGroup');groupSelect.replaceChildren();
+ const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Selecionar um grupo…';groupSelect.append(placeholder);
+ groups.forEach((group,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent=group.name+' ('+group.indices.length+')';groupSelect.append(option);group.indices.forEach(i=>names.set(i,group.name));});
+ (state.model?.elements||[]).forEach((e,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=(i+1)+'. '+(names.has(i)?names.get(i)+' / ':'')+(e.name||'Cubo '+(i+1));option.title=option.textContent;select.append(option);});
  $('cubeCount').textContent=state.model?state.model.elements.length.toLocaleString('pt-BR')+' cubos':'GLB original';
- selectedCube(state.selected>=0&&state.selected<(state.model?.elements.length||0)?state.selected:-1);
+ selectedCubes(state.selectedIndices,{activate:false});
 }
 function rebuild({recenter=false}={}){
  clearSelection();
@@ -93,7 +129,7 @@ function rebuild({recenter=false}={}){
   convertedMesh.traverse(o=>{if(o.isMesh)o.material.wireframe=$('wireframe').checked;});
  }
  if(state.original)state.original.position.fromArray(state.center).negate();
- applyFit();refreshList();showComparison();$('welcome').hidden=!!(state.model||state.original);
+ applyFit();refreshList();refreshPackList();showComparison();$('welcome').hidden=!!(state.model||state.original);
  if(state.model||state.original)gizmo.attach(cosmetic);else gizmo.detach();
  updateButtons();
 }
@@ -102,11 +138,12 @@ function showComparison(){
  if(convertedMesh)convertedMesh.visible=!original||!state.original;
  if(state.original)state.original.visible=original||!state.converted;
  $('previewBadge').textContent=state.original&&(!state.converted||original)?'GLB ORIGINAL · A CONVERTER':'MODELO DO KUSHMOD';
- if(selectionBox)selectionBox.visible=!original;
+ if(selectionBox)selectionBox.visible=state.selectionMode==='pack'?!!state.original?.visible:!!convertedMesh?.visible;
 }
 function disposeOriginal(){
+ for(const mesh of state.retiredMeshes)disposeObject(mesh);state.retiredMeshes.clear();state.packSelection=[];
  if(state.original){cosmetic.remove(state.original);disposeObject(state.original,{textures:true});state.original=null;}
- state.triangles=null;state.converted=false;$('glbPanel').hidden=true;$('original').checked=false;
+ state.triangles=null;state.converted=false;$('packPanel').hidden=true;$('glbPanel').hidden=true;$('original').checked=false;
 }
 function resetAnchor(){
  const name=$('anchor').value,anchor=ANCHORS[name],position=anchor.position.slice(),d=state.dimensions;
@@ -123,7 +160,7 @@ async function defaultPalette(){
  const canvas=document.createElement('canvas');canvas.width=16;canvas.height=16;const ctx=canvas.getContext('2d');paletteColors.forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(i,0,1,1);});return pngBytes(canvas);
 }
 async function decodeTexture(bytes){
- K.checkPNG(bytes);const blob=new Blob([bytes],{type:'image/png'}),bitmap=await createImageBitmap(blob);
+ K.checkPNG(bytes);const blob=new Blob([bytes],{type:'image/png'}),bitmap=await createImageBitmap(blob,{imageOrientation:'flipY'});
  const texture=new T.Texture(bitmap);texture.colorSpace=T.SRGBColorSpace;texture.magFilter=T.NearestFilter;texture.minFilter=T.NearestFilter;texture.generateMipmaps=false;texture.flipY=true;texture.needsUpdate=true;return texture;
 }
 function installTexture(bytes,texture){
@@ -133,7 +170,7 @@ function installTexture(bytes,texture){
 async function setTexture(bytes){const texture=await decodeTexture(bytes);installTexture(bytes,texture);}
 async function preset(kind){
  if(state.busy)return;state.busy=true;updateButtons();try{loadRevision++;textureRevision++;
- disposeOriginal();state.model=simpleModel(kind);state.selected=-1;state.history=[];state.palette=true;
+ disposeOriginal();state.model=simpleModel(kind);state.selected=-1;state.history=[];state.palette=true;state.selectedIndices=[];state.selectionMode='cube';
  await setTexture(await defaultPalette());
  $('anchor').value=kind==='hat'?'head':'back';
  const name={hat:'Meu chapéu',backpack:'Minha mochila',wings:'Minhas asas'}[kind];$('displayName').value=name;$('cosmeticId').value={hat:'meu_chapeu',backpack:'minha_mochila',wings:'minhas_asas'}[kind];
@@ -158,14 +195,14 @@ async function importModel(file){
    if(box.isEmpty()||!Number.isFinite(longest)||longest<1e-10){disposeObject(raw,{textures:true});throw Error('GLB sem malha visível.');}
    const normalized=new T.Group();normalized.scale.setScalar(12/longest);normalized.position.copy(center).multiplyScalar(-12/longest);normalized.add(raw);
    const wrapper=new T.Group();wrapper.add(normalized);
-   let triangles;try{triangles=await prepareMesh(wrapper,renderer);}catch(error){disposeObject(wrapper,{textures:true});throw error;}
+   let triangles;try{triangles=await prepareMesh(wrapper,renderer,{localSpace:true});}catch(error){disposeObject(wrapper,{textures:true});throw error;}
    if(stamp!==loadRevision){disposeObject(wrapper,{textures:true});return;}
-   disposeOriginal();state.original=wrapper;state.triangles=triangles;cosmetic.add(wrapper);state.model=null;state.center=[0,0,0];state.naturalCenter=[0,0,0];state.dimensions=size.toArray().map(v=>v*12/longest);state.palette=false;state.selected=-1;state.history=[];
+   disposeOriginal();state.original=wrapper;state.triangles=triangles;cosmetic.add(wrapper);state.model=null;state.center=[0,0,0];state.naturalCenter=[0,0,0];state.dimensions=size.toArray().map(v=>v*12/longest);state.palette=false;state.selected=-1;state.selectedIndices=[];state.selectionMode='cube';state.history=[];
    $('glbPanel').hidden=false;$('original').checked=true;$('conversionInfo').textContent=triangles.length.toLocaleString('pt-BR')+' triângulos · escolha o detalhe e converta.';resetAnchor();rebuild();
    say('GLB aberto'+(gltf.animations.length?' na pose estática':'')+'. Ajuste no personagem e clique em “Converter para o KUSHMOD”.');
   }else if(/\.json$/i.test(file.name)){
    const model=K.checkModel(new Uint8Array(buffer));
-   disposeOriginal();state.model=model;state.palette=false;state.selected=-1;state.history=[];
+   disposeOriginal();state.model=model;state.palette=false;state.selected=-1;state.selectedIndices=[];state.selectionMode='cube';state.history=[];
    await setTexture(await defaultPalette());state.textureBytes=null;$('textureInfo').textContent='Selecione a TEXTURE.PNG deste modelo para exportar.';
    if(model.kushStudio?.coordinateSpace==='player'){
     state.center=[0,0,0];state.fit={position:[0,0,0],rotation:[0,0,0],scale:1,attach:model.kushStudio.attach||'HEAD'};
@@ -181,11 +218,11 @@ async function convert(){
  const stamp=loadRevision;state.busy=true;state.controller=new AbortController();$('cancelConvert').hidden=false;$('progress').hidden=false;$('progress').value=0;updateButtons();gizmo.detach();
  try{
   say('Convertendo a superfície e as cores do GLB em cubos…');
-  const result=await voxelize(state.triangles,{resolution:Number($('detail').value),signal:state.controller.signal,onProgress:p=>$('progress').value=p});
+  const result=await voxelize(state.triangles,{resolution:Number($('detail').value),signal:state.controller.signal,preservePlacement:true,onProgress:p=>$('progress').value=p});
   if(stamp!==loadRevision)throw Error('O modelo mudou durante a conversão.');
   const canvas=document.createElement('canvas');canvas.width=result.width;canvas.height=result.height;canvas.getContext('2d').putImageData(new ImageData(result.pixels,result.width,result.height),0,0);
   const bytes=await pngBytes(canvas),modelBytes=K.jsonBytes(result.model);K.checkModel(modelBytes);
-  await setTexture(bytes);state.model=result.model;state.converted=true;state.palette=false;state.selected=-1;state.history=[];$('original').checked=false;state.center=[0,0,0];rebuild();
+  await setTexture(bytes);state.model=result.model;state.converted=true;state.palette=false;state.selected=-1;state.selectedIndices=[];state.selectionMode='cube';state.history=[];$('original').checked=false;rebuild();
   $('conversionInfo').textContent=result.cubes.toLocaleString('pt-BR')+' cubos · '+result.colors+' cores · pronto para exportar';change();say('Conversão concluída. Este é o modelo que irá para o jogo. Compare com o original e confira o encaixe.','success');
  }catch(error){say(error.name==='AbortError'?'Conversão cancelada.':error.message,'error');}
  finally{state.busy=false;state.controller=null;$('cancelConvert').hidden=true;$('progress').hidden=true;if(state.model||state.original)gizmo.attach(cosmetic);updateButtons();}
@@ -231,7 +268,7 @@ async function openProject(file){
   if(p.format!=='kushstudio'||p.version!==2||!ANCHORS[p.anchor]||!Array.isArray(p.center)||p.center.length!==3||p.center.some(v=>!Number.isFinite(v)||Math.abs(v)>4096))throw Error('Formato do projeto não suportado.');
   K.checkModel(K.jsonBytes(p.model));fitModel(p.model,p.center,p.fit);K.makeAssets({...p.options,attach:p.fit.attach,flags:525},K.jsonBytes(fitModel(p.model,p.center,p.fit)),entries['texture.png']);
   const texture=await decodeTexture(entries['texture.png']);
-  loadRevision++;textureRevision++;disposeOriginal();state.model=p.model;state.fit=p.fit;state.center=p.center;state.palette=!!p.palette;state.selected=-1;state.history=[];
+  loadRevision++;textureRevision++;disposeOriginal();state.model=p.model;state.fit=p.fit;state.center=p.center;state.palette=!!p.palette;state.selected=-1;state.selectedIndices=[];state.selectionMode='cube';state.history=[];
   installTexture(entries['texture.png'],texture);$('anchor').value=p.anchor;$('category').value=p.options.category;$('displayName').value=p.options.displayName;$('cosmeticId').value=p.options.id;$('replace').checked=false;
   rebuild();change();$('saveState').textContent='Projeto aberto';say('Projeto aberto. Se quiser gerar um mod, selecione o KUSHMOD original.','success');
  }catch(error){say('Não foi possível abrir o projeto: '+error.message,'error');}
@@ -266,6 +303,16 @@ function defaultSkin(){
  const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;texture.magFilter=texture.minFilter=T.NearestFilter;texture.generateMipmaps=false;return texture;
 }
 skinTexture=defaultSkin();createPlayer(skinTexture);
+async function restoreGabrielSkin(){
+ const stamp=++skinRevision;
+ try{
+  const texture=await new T.TextureLoader().loadAsync(new URL('assets/gabriel-skin.png',location.href).href);
+  texture.colorSpace=T.SRGBColorSpace;texture.magFilter=texture.minFilter=T.NearestFilter;texture.generateMipmaps=false;
+  if(stamp!==skinRevision){texture.dispose();return;}
+  const old=skinTexture;skinTexture=texture;createPlayer(texture);old.dispose();old.image?.close?.();$('skinName').textContent='Skin do Gabriel';viewport.dataset.skin='gabriel';
+ }catch(error){say('Não foi possível carregar a skin do Gabriel: '+error.message,'error');}
+}
+restoreGabrielSkin();$('resetSkin').addEventListener('click',restoreGabrielSkin);
 $('model').addEventListener('change',e=>importModel(e.target.files[0]));
 $('texture').addEventListener('change',async e=>{
  const file=e.target.files[0];if(!file||state.busy)return;
@@ -292,7 +339,7 @@ $('skin').addEventListener('change',async e=>{
   const bytes=new Uint8Array(await file.arrayBuffer()),info=K.checkPNG(bytes);
   if(info.width!==64||![32,64].includes(info.height))throw Error('Use uma skin clássica de 64×64 ou 64×32 pixels.');
   const texture=await decodeTexture(bytes);if(stamp!==skinRevision){texture.dispose();return;}
-  const old=skinTexture;skinTexture=texture;createPlayer(texture);old.dispose();old.image?.close?.();say('Skin aplicada ao personagem de referência.');
+  const old=skinTexture;skinTexture=texture;createPlayer(texture);old.dispose();old.image?.close?.();$('skinName').textContent='Skin personalizada';viewport.dataset.skin='custom';say('Skin aplicada ao personagem de referência.');
  }catch(error){say(error.message,'error');}
 });
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>preset(b.dataset.preset).catch(e=>say(e.message,'error'))));
@@ -312,14 +359,47 @@ document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',(
 }));
 $('showPlayer').addEventListener('change',()=>{player.visible=$('showPlayer').checked;});
 $('wireframe').addEventListener('change',()=>convertedMesh?.traverse(o=>{if(o.isMesh)o.material.wireframe=$('wireframe').checked;}));
-$('cubeList').addEventListener('change',()=>selectedCube(Number($('cubeList').value)));
+$('cubeList').addEventListener('change',()=>selectedCubes([...$('cubeList').selectedOptions].map(option=>Number(option.value))));
+$('cubeGroup').addEventListener('change',()=>{const group=modelGroups(state.model)[Number($('cubeGroup').value)];if($('cubeGroup').value!==''&&group)selectedCubes(group.indices);});
+$('cubeAll').addEventListener('click',()=>selectedCubes((state.model?.elements||[]).map((_,index)=>index)));
+$('cubeNone').addEventListener('click',()=>selectedCubes([]));
+$('packList').addEventListener('change',()=>selectedPack([...$('packList').selectedOptions].map(option=>option.value)));
+$('packAll').addEventListener('click',()=>selectedPack(packParts(state.original).map(part=>part.id)));
+$('packNone').addEventListener('click',()=>selectedPack([]));
+async function editPack(kind){
+ if(state.busy||!state.original)return;
+ const previous=remember();let edit;state.busy=true;state.controller=new AbortController();updateButtons();gizmo.detach();
+ try{
+  if(kind==='split'){
+   $('cancelConvert').hidden=false;$('progress').hidden=false;$('progress').value=0;
+   say('Separando peças desconectadas do pack…');
+   edit=await splitPackParts(state.original,state.packSelection,{signal:state.controller.signal,onProgress:value=>$('progress').value=value});
+   if(!edit.entries.length){state.history.pop();say('Não há peças desconectadas nos objetos selecionados. Selecione outros elementos na lista.');return;}
+  }else{
+   edit=removePackParts(state.original,state.packSelection,{keepOnly:kind==='keep'});
+   edit.normalization=normalizePack(state.original);
+   state.model=null;state.converted=false;state.selected=-1;state.selectedIndices=[];state.center=[0,0,0];state.naturalCenter=[0,0,0];state.dimensions=edit.normalization.dimensions;
+  }
+  previous.packEdit=edit;
+  for(const row of edit.entries){state.retiredMeshes.add(row.object);for(const part of row.parts||[])state.retiredMeshes.add(part);}
+  state.triangles=await prepareMesh(state.original,renderer,{localSpace:true});
+  state.selectionMode='pack';state.packSelection=[];$('original').checked=true;rebuild();change();
+  $('conversionInfo').textContent=state.triangles.length.toLocaleString('pt-BR')+' triângulos nas peças restantes';
+  say(kind==='split'?'Peças separadas. Selecione o que quer excluir ou manter.':'Peças removidas do modelo. Converta o restante para usar no KUSHMOD. Ctrl+Z desfaz.','success');
+ }catch(error){
+  if(edit&&!previous.packEdit)previous.packEdit=edit;
+  restoreSnapshot(previous);if(state.history.at(-1)===previous)state.history.pop();
+  state.triangles=await prepareMesh(state.original,renderer,{localSpace:true});rebuild();say(error.name==='AbortError'?'Separação cancelada.':error.message,'error');
+ }finally{state.busy=false;state.controller=null;$('cancelConvert').hidden=true;$('progress').hidden=true;if(state.model||state.original)gizmo.attach(cosmetic);updateButtons();}
+}
+$('packDelete').addEventListener('click',()=>editPack('delete'));$('packKeep').addEventListener('click',()=>editPack('keep'));$('packSplit').addEventListener('click',()=>editPack('split'));
 $('addCube').addEventListener('click',async()=>{
  if(state.busy)return;
  if(!state.model){await preset('hat');state.model.elements=[];}
  if(state.model.elements.length>=2048){say('O limite é de 2.048 cubos.','error');return;}
  remember();const e=state.model.elements[state.selected>=0?state.selected:0];
  const cube=e?{name:'Novo cubo',from:[6,0,6],to:[10,4,10],faces:structuredClone(e.faces)}:simpleModel().elements[0];
- state.model.elements.push(cube);state.selected=state.model.elements.length-1;rebuild();change();
+ state.model.elements.push(cube);state.selected=state.model.elements.length-1;state.selectedIndices=[state.selected];state.selectionMode='cube';rebuild();change();
 });
 $('duplicateCube').addEventListener('click',()=>{
  if(state.busy||state.selected<0)return;if(state.model.elements.length>=2048){say('Limite de 2.048 cubos.','error');return;}
@@ -327,13 +407,13 @@ $('duplicateCube').addEventListener('click',()=>{
  const index=state.model.elements.length;state.model.elements.push(e);
  // The duplicate follows the same group as its source.
  function addToGroup(groups){for(const g of groups||[]){if(typeof g==='object'){if(g.children?.includes(state.selected)){g.children.push(index);return true;}if(addToGroup(g.children))return true;}}return false;}
- addToGroup(state.model.groups);state.selected=index;rebuild();change();
+ addToGroup(state.model.groups);state.selected=index;state.selectedIndices=[index];rebuild();change();
 });
-function removeIndex(groups,index){return (groups||[]).filter(g=>g!==index).map(g=>typeof g==='number'?g>index?g-1:g:{...g,children:removeIndex(g.children,index)});}
-$('deleteCube').addEventListener('click',()=>{
- if(state.busy||state.selected<0)return;if(state.model.elements.length===1){say('O modelo precisa de pelo menos um cubo.','error');return;}
- remember();const index=state.selected;state.model.elements.splice(index,1);if(state.model.groups)state.model.groups=removeIndex(state.model.groups,index);state.selected=-1;rebuild();change();
-});
+function editCubes(keepOnly=false){
+ if(state.busy||!state.model||!state.selectedIndices.length)return;
+ try{const result=removeModelElements(state.model,state.selectedIndices,{keepOnly});remember();state.model=result;state.selected=-1;state.selectedIndices=[];rebuild();change();say('Elementos removidos do modelo. Ctrl+Z desfaz.','success');}catch(error){say(error.message,'error');}
+}
+$('deleteCube').addEventListener('click',()=>editCubes(false));$('keepCubes').addEventListener('click',()=>editCubes(true));
 for(const id of ['cx','cy','cz','sx','sy','sz'])$(id).addEventListener('change',()=>{
  if(state.busy||state.selected<0)return;
  const center=['cx','cy','cz'].map(id=>Number($(id).value)),size=['sx','sy','sz'].map(id=>Number($(id).value));
@@ -344,22 +424,27 @@ $('cubeColor').addEventListener('change',()=>{
  if(state.busy||!state.palette||state.selected<0)return;remember();const i=Number($('cubeColor').value);
  const e=state.model.elements[state.selected];for(const f of Object.values(e.faces))f.uv=[i,0,i+1,1];rebuild();change();
 });
-$('undo').addEventListener('click',()=>{
- if(state.busy)return;const previous=state.history.pop();if(!previous)return;
- Object.assign(state,previous);rebuild();change();say('Alteração desfeita.');
+$('undo').addEventListener('click',async()=>{
+ if(state.busy)return;const previous=state.history.pop();if(!previous)return;state.busy=true;updateButtons();
+ try{restoreSnapshot(previous);if(state.original)state.triangles=await prepareMesh(state.original,renderer,{localSpace:true});rebuild();change();say('Alteração desfeita.');}
+ catch(error){say(error.message,'error');}finally{state.busy=false;updateButtons();}
 });
 $('exportJar').addEventListener('click',()=>exportFiles(true));$('exportAssets').addEventListener('click',()=>exportFiles(false));$('projectSave').addEventListener('click',saveProject);$('project').addEventListener('change',e=>openProject(e.target.files[0]));
 for(const id of ['displayName','cosmeticId','category','replace'])$(id).addEventListener('input',change);
 let pointerStart;
 renderer.domElement.addEventListener('pointerdown',e=>{pointerStart=[e.clientX,e.clientY];});
 renderer.domElement.addEventListener('pointerup',e=>{
- if(!convertedMesh?.visible||gizmo.dragging||!pointerStart||Math.hypot(e.clientX-pointerStart[0],e.clientY-pointerStart[1])>4)return;
+ if(state.busy||gizmo.dragging||!pointerStart||Math.hypot(e.clientX-pointerStart[0],e.clientY-pointerStart[1])>4)return;
  const rect=renderer.domElement.getBoundingClientRect(),p=new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),ray=new T.Raycaster();ray.setFromCamera(p,camera);
- const hit=ray.intersectObject(convertedMesh,true).find(h=>h.object.userData.element!=null);if(hit)selectedCube(hit.object.userData.element);
+ const extend=e.ctrlKey||e.metaKey||e.shiftKey;
+ if(state.original?.visible){const hit=ray.intersectObject(state.original,true).find(h=>h.object.isMesh);if(hit){const ids=new Set(extend?state.packSelection:[]);if(extend&&ids.has(hit.object.uuid))ids.delete(hit.object.uuid);else ids.add(hit.object.uuid);selectedPack([...ids]);viewport.focus({preventScroll:true});}}
+ else if(convertedMesh?.visible){const hit=ray.intersectObject(convertedMesh,true).find(h=>h.object.userData.element!=null);if(hit){selectedCube(hit.object.userData.element,extend);viewport.focus({preventScroll:true});}}
 });
 document.addEventListener('keydown',e=>{
- if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
- if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();$('undo').click();}
+ const tag=document.activeElement?.tagName;if(['INPUT','TEXTAREA'].includes(tag))return;
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();$('undo').click();return;}
+ if(e.key==='Delete'){e.preventDefault();if(state.selectionMode==='pack')$('packDelete').click();else $('deleteCube').click();return;}
+ if(tag==='SELECT')return;
  if(e.key.toLowerCase()==='w')setTool('translate');if(e.key.toLowerCase()==='e')setTool('rotate');
 });
 viewport.addEventListener('dragover',e=>{e.preventDefault();});
@@ -367,3 +452,4 @@ viewport.addEventListener('drop',e=>{e.preventDefault();const file=e.dataTransfe
 window.addEventListener('error',e=>say('Ocorreu um erro: '+e.message,'error'));
 window.addEventListener('unhandledrejection',e=>say('Ocorreu um erro: '+(e.reason?.message||e.reason),'error'));
 updateButtons();
+

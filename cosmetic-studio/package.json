@@ -1,6 +1,6 @@
 {
   "name": "kush-cosmetic-studio",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Editor e conversor de cosméticos para o KUSHMOD, com ajuste no personagem.",
   "private": true,
   "author": "Gabriel Britto",
@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "npm run build && electron .",
-    "test": "node --test test/core.test.mjs test/model.test.mjs test/voxel.test.mjs",
+    "test": "node --test test/core.test.mjs test/model.test.mjs test/voxel.test.mjs test/pack.test.mjs",
     "test:ui": "node test/electron.mjs",
     "dist:win": "npm run build && electron-builder --win portable --x64 --publish never"
   },

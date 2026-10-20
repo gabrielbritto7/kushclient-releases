@@ -28,3 +28,14 @@ test('conversion cancellation is honored',async()=>{
  const mesh=new T.Mesh(new T.BoxGeometry(1,1,1),new T.MeshStandardMaterial()),root=new T.Group();root.add(mesh);
  const c=new AbortController();c.abort();await assert.rejects(voxelize(await prepareMesh(root),{signal:c.signal}),/cancelada/);
 });
+test('pack conversion excludes deleted meshes and never bakes the avatar fit into the geometry twice',async()=>{
+ const avatarFit=new T.Group(),root=new T.Group();avatarFit.position.set(7,24,-8);avatarFit.rotation.set(.4,.7,-.2,'ZYX');avatarFit.scale.setScalar(2);avatarFit.add(root);
+ root.position.set(-3,2,1);
+ const kept=new T.Mesh(new T.BoxGeometry(2,2,2),new T.MeshStandardMaterial({color:'green'})),deleted=new T.Mesh(new T.BoxGeometry(2,2,2),new T.MeshStandardMaterial({color:'red'}));kept.position.x=4;deleted.position.x=-10;root.add(kept,deleted);root.remove(deleted);
+ avatarFit.updateMatrixWorld(true);const triangles=await prepareMesh(root,undefined,{localSpace:true});assert.equal(triangles.length,12);
+ const vertices=triangles.flatMap(t=>t.vertices);assert.ok(Math.abs(Math.min(...vertices.map(p=>p.x))-3)<1e-7);assert.ok(Math.abs(Math.max(...vertices.map(p=>p.x))-5)<1e-7);
+ const result=await voxelize(triangles,{resolution:8,preservePlacement:true});
+ assert.ok(Math.min(...result.model.elements.map(e=>e.from[0]))>=11-1e-6);assert.ok(Math.max(...result.model.elements.map(e=>e.to[0]))<=13+1e-6);
+ assert.ok(result.pixels[1]>result.pixels[0]);
+});
+
