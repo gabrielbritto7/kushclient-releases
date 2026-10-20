@@ -1,0 +1,54 @@
+{
+  "name": "kush-cosmetic-studio",
+  "version": "2.1.0",
+  "description": "Editor e conversor de cosméticos para o KUSHMOD, com ajuste no personagem.",
+  "private": true,
+  "author": "Gabriel Britto",
+  "main": "main.cjs",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "test": "node --test test/core.test.mjs test/model.test.mjs test/voxel.test.mjs test/pack.test.mjs",
+    "test:ui": "node test/electron.mjs",
+    "dist:win": "npm run build && electron-builder --win portable --x64 --publish never"
+  },
+  "dependencies": {
+    "fflate": "0.8.2",
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "electron": "44.9.2",
+    "electron-builder": "26.18.0",
+    "esbuild": "0.25.10",
+    "playwright-core": "1.64.1"
+  },
+  "build": {
+    "appId": "com.kush.cosmeticstudio",
+    "productName": "KUSH Cosmetic Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "app/**/*",
+      "main.cjs",
+      "package.json"
+    ],
+    "asar": true,
+    "artifactName": "KUSH-Cosmetic-Studio-${version}-Windows-x64.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "requestExecutionLevel": "user"
+    }
+  }
+}
