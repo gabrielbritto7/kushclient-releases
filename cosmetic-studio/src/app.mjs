@@ -10,7 +10,7 @@ import K from './core.mjs';
 import {ANCHORS,FACE_NAMES,createModel,fitModel,makeFit,simpleModel,disposeObject} from './model.mjs';
 import {inspectGLB,prepareMesh,voxelize} from './voxel.mjs';
 const $=id=>document.getElementById(id),viewport=$('viewport');
-const state={model:null,texture:null,textureBytes:null,palette:false,fit:{position:[0,33,0],rotation:[0,0,0],scale:1,attach:'HEAD'},center:[0,0,0],jar:null,jarName:'KUSHMOD.jar',original:null,triangles:null,converted:false,selected:-1,revision:0,busy:false,history:[],controller:null};
+const state={model:null,texture:null,textureBytes:null,palette:false,fit:{position:[0,33,0],rotation:[0,0,0],scale:1,attach:'HEAD'},center:[0,0,0],naturalCenter:[0,0,0],dimensions:[0,0,0],jar:null,jarName:'KUSHMOD.jar',original:null,triangles:null,converted:false,selected:-1,revision:0,busy:false,history:[],controller:null};
 let cosmetic,convertedMesh,selectionBox,skinTexture,player,loadRevision=0,textureRevision=0,skinRevision=0;
 const renderer=new T.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setClearColor(0x16171e,0);renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.NoToneMapping;viewport.prepend(renderer.domElement);
@@ -37,6 +37,8 @@ function dirty(){$('saveState').textContent='Alterações no projeto';updateButt
 function change(){state.revision++;dirty();}
 function ready(){return !!(state.model&&state.textureBytes&&!state.busy&&(!state.original||state.converted));}
 function updateButtons(){
+ for(const id of ['model','texture','project'])$(id).disabled=state.busy;
+ document.querySelectorAll('[data-preset]').forEach(button=>button.disabled=state.busy);
  $('exportAssets').disabled=!ready();$('exportJar').disabled=!ready()||!state.jar;
  $('convert').disabled=!state.triangles||state.busy;$('undo').disabled=!state.history.length||state.busy;
  $('addCube').disabled=state.busy||!!state.original&&!state.converted;
@@ -83,7 +85,9 @@ function rebuild({recenter=false}={}){
  clearSelection();
  if(convertedMesh){cosmetic.remove(convertedMesh);disposeObject(convertedMesh);convertedMesh=null;}
  if(state.model){
-  convertedMesh=createModel(state.model,state.texture);cosmetic.add(convertedMesh);
+  convertedMesh=createModel(state.model,state.texture);
+  const bounds=new T.Box3().setFromObject(convertedMesh);state.naturalCenter=bounds.getCenter(new T.Vector3()).toArray();state.dimensions=bounds.getSize(new T.Vector3()).toArray();
+  cosmetic.add(convertedMesh);
   if(recenter)state.center=makeFit(convertedMesh,$('anchor').value).center;
   convertedMesh.position.fromArray(state.center).negate();
   convertedMesh.traverse(o=>{if(o.isMesh)o.material.wireframe=$('wireframe').checked;});
@@ -105,7 +109,13 @@ function disposeOriginal(){
  state.triangles=null;state.converted=false;$('glbPanel').hidden=true;$('original').checked=false;
 }
 function resetAnchor(){
- const anchor=ANCHORS[$('anchor').value];state.fit={position:anchor.position.slice(),rotation:[0,0,0],scale:1,attach:anchor.attach};$('category').value=anchor.category;applyFit();
+ const name=$('anchor').value,anchor=ANCHORS[name],position=anchor.position.slice(),d=state.dimensions;
+ if(name==='head')position[1]=32+d[1]/2;
+ if(name==='face')position[2]=-4-d[2]/2-.1;
+ if(name==='back')position[2]=2+d[2]/2+.1;
+ if(name==='chest')position[2]=-2-d[2]/2-.1;
+ state.center=state.naturalCenter.slice();convertedMesh?.position.fromArray(state.center).negate();state.original?.position.fromArray(state.center).negate();
+ state.fit={position,rotation:[0,0,0],scale:1,attach:anchor.attach};$('category').value=anchor.category;applyFit();
 }
 const paletteColors=['#eee5ce','#27222c','#f1bd52','#b9314b','#f27ca5','#779bc9','#80b792','#f8f5ef'];
 async function pngBytes(canvas){const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('Não foi possível criar a textura PNG.');return new Uint8Array(await blob.arrayBuffer());}
@@ -122,16 +132,17 @@ function installTexture(bytes,texture){
 }
 async function setTexture(bytes){const texture=await decodeTexture(bytes);installTexture(bytes,texture);}
 async function preset(kind){
- if(state.busy)return;loadRevision++;textureRevision++;
+ if(state.busy)return;state.busy=true;updateButtons();try{loadRevision++;textureRevision++;
  disposeOriginal();state.model=simpleModel(kind);state.selected=-1;state.history=[];state.palette=true;
  await setTexture(await defaultPalette());
- $('anchor').value=kind==='hat'?'head':'back';resetAnchor();$('category').value=kind==='wings'?'wings':ANCHORS[$('anchor').value].category;
+ $('anchor').value=kind==='hat'?'head':'back';
  const name={hat:'Meu chapéu',backpack:'Minha mochila',wings:'Minhas asas'}[kind];$('displayName').value=name;$('cosmeticId').value={hat:'meu_chapeu',backpack:'minha_mochila',wings:'minhas_asas'}[kind];
- rebuild({recenter:true});change();$('modelInfo').textContent='Modelo criado no Studio · '+state.model.elements.length+' cubos';say('Modelo pronto. Escolha um cubo para editar ou arraste as setas para ajustar no personagem.');
+ rebuild({recenter:true});resetAnchor();$('category').value=kind==='wings'?'wings':ANCHORS[$('anchor').value].category;change();$('modelInfo').textContent='Modelo criado no Studio · '+state.model.elements.length+' cubos';say('Modelo pronto. Escolha um cubo para editar ou arraste as setas para ajustar no personagem.');
+ }finally{state.busy=false;updateButtons();}
 }
 async function importModel(file){
  if(!file||state.busy)return;
- const stamp=++loadRevision;textureRevision++;say('Abrindo '+file.name+'…');
+ const stamp=++loadRevision;textureRevision++;state.busy=true;updateButtons();say('Abrindo '+file.name+'…');
  try{
   if(file.size>64*1024*1024)throw Error('O arquivo ultrapassa 64 MB.');
   const buffer=await file.arrayBuffer();if(stamp!==loadRevision)return;
@@ -149,7 +160,7 @@ async function importModel(file){
    const wrapper=new T.Group();wrapper.add(normalized);
    let triangles;try{triangles=await prepareMesh(wrapper,renderer);}catch(error){disposeObject(wrapper,{textures:true});throw error;}
    if(stamp!==loadRevision){disposeObject(wrapper,{textures:true});return;}
-   disposeOriginal();state.original=wrapper;state.triangles=triangles;cosmetic.add(wrapper);state.model=null;state.center=[0,0,0];state.palette=false;state.selected=-1;state.history=[];
+   disposeOriginal();state.original=wrapper;state.triangles=triangles;cosmetic.add(wrapper);state.model=null;state.center=[0,0,0];state.naturalCenter=[0,0,0];state.dimensions=size.toArray().map(v=>v*12/longest);state.palette=false;state.selected=-1;state.history=[];
    $('glbPanel').hidden=false;$('original').checked=true;$('conversionInfo').textContent=triangles.length.toLocaleString('pt-BR')+' triângulos · escolha o detalhe e converta.';resetAnchor();rebuild();
    say('GLB aberto'+(gltf.animations.length?' na pose estática':'')+'. Ajuste no personagem e clique em “Converter para o KUSHMOD”.');
   }else if(/\.json$/i.test(file.name)){
@@ -159,11 +170,11 @@ async function importModel(file){
    if(model.kushStudio?.coordinateSpace==='player'){
     state.center=[0,0,0];state.fit={position:[0,0,0],rotation:[0,0,0],scale:1,attach:model.kushStudio.attach||'HEAD'};
     const match=Object.entries(ANCHORS).find(([,a])=>a.attach===state.fit.attach);if(match)$('anchor').value=match[0];rebuild();
-   }else{resetAnchor();rebuild({recenter:true});}
+   }else{rebuild({recenter:true});resetAnchor();}
    say('MODEL.JSON importado. Selecione sua TEXTURE.PNG e ajuste a peça no personagem.');
   }else throw Error('Escolha um arquivo .GLB ou .JSON.');
   $('modelInfo').textContent=file.name;change();
- }catch(error){say(error.message,'error');}
+ }catch(error){say(error.message,'error');}finally{state.busy=false;updateButtons();}
 }
 async function convert(){
  if(!state.triangles||state.busy)return;
@@ -196,7 +207,8 @@ async function exportFiles(withJar){
    download(result.jar,state.jarName.replace(/\.jar$/i,'')+'-'+o.id+'.jar','application/java-archive');
    say('KUSHMOD gerado com '+result.count+' itens no catálogo. Escolha onde salvar a cópia.','success');
   }else{
-   const files={'MODEL.JSON':bytes,'TEXTURE.PNG':state.textureBytes,'CATALOG.JSON':K.jsonBytes({schema:1,items:[assets.item]}),'catalog-item.json':K.jsonBytes(assets.item)};
+   const packageItem={...assets.item,model:'MODEL.JSON',texture:'TEXTURE.PNG'};
+   const files={'MODEL.JSON':bytes,'TEXTURE.PNG':state.textureBytes,'CATALOG.JSON':K.jsonBytes({schema:1,items:[packageItem]}),'catalog-item.json':K.jsonBytes(packageItem)};
    download(F.zipSync(files,{level:6}),o.id+'-KUSH.zip','application/zip');say('Pacote gerado: MODEL.JSON, CATALOG.JSON e TEXTURE.PNG, com o ajuste no personagem.','success');
   }
  }catch(error){say(error.message,'error');}finally{state.busy=false;updateButtons();}

@@ -4,6 +4,7 @@ on:
     branches: [main, 'codex/kush-cosmetic-studio-desktop']
     paths: ['cosmetic-studio/**', '.github/workflows/cosmetic-studio-windows.yml']
   pull_request:
+    types: [synchronize, reopened, ready_for_review]
     paths: ['cosmetic-studio/**', '.github/workflows/cosmetic-studio-windows.yml']
   workflow_dispatch:
 permissions:
@@ -36,6 +37,21 @@ jobs:
         env:
           KUSH_TEST_EXE_PATH: '${{ github.workspace }}\cosmetic-studio\release\win-unpacked\KUSH Cosmetic Studio.exe'
         run: npm run test:ui
+      - name: Smoke test portable launcher
+        run: |
+          $portable = Get-Item release/*-Windows-x64.exe
+          $launcher = Start-Process -FilePath $portable.FullName -PassThru
+          $studio = $null
+          for ($attempt = 0; $attempt -lt 45; $attempt++) {
+            Start-Sleep -Seconds 1
+            $studio = Get-Process | Where-Object { $_.MainWindowTitle -eq 'KUSH Cosmetic Studio' } | Select-Object -First 1
+            if ($studio) { break }
+            if ($launcher.HasExited) { throw 'O aplicativo portátil encerrou antes de abrir a janela.' }
+          }
+          if (-not $studio) { throw 'A janela do aplicativo portátil não abriu.' }
+          $studio.CloseMainWindow() | Out-Null
+          if (-not $launcher.WaitForExit(20000)) { throw 'O aplicativo portátil não encerrou após fechar a janela.' }
+          if ($launcher.ExitCode -ne 0) { throw "O aplicativo portátil retornou $($launcher.ExitCode)." }
       - name: Prepare download
         run: |
           New-Item -ItemType Directory -Force delivery | Out-Null

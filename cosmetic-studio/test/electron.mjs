@@ -11,15 +11,16 @@ await mkdir(out,{recursive:true});
 const jarPath=path.join(out,'KUSHMOD-fixture.jar'),glbPath=path.join(out,'textured-cube.glb');
 await writeFile(jarPath,jar());await writeFile(glbPath,glbFixture());
 let app,failed=false;const errors=[];
+const watchdog=setTimeout(()=>{console.error('O teste do aplicativo excedeu 3 minutos.');app?.process()?.kill();process.exit(1);},180000);
 async function exists(file){for(let i=0;i<120;i++){try{if((await stat(file)).size)return;}catch{}await new Promise(r=>setTimeout(r,250));}throw Error('Download não salvo: '+file);}
 try{
  const executablePath=process.env.KUSH_TEST_EXE_PATH;
  app=await electron.launch({...(executablePath?{executablePath,args:[]}:{args:[root]}),timeout:60000,env:{...process.env,ELECTRON_ENABLE_LOGGING:'1'}});
- const page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
+ const page=await app.firstWindow();page.setDefaultTimeout(20000);page.on('pageerror',error=>errors.push(error.message));
  await page.waitForSelector('#viewport canvas',{timeout:60000});await page.waitForTimeout(1500);
  await app.evaluate(({session},dir)=>{
   session.defaultSession.removeAllListeners('will-download');
-  session.defaultSession.on('will-download',(_event,item)=>item.setSavePath(require('node:path').join(dir,item.getFilename())));
+  session.defaultSession.on('will-download',(_event,item)=>item.setSavePath(dir+'/'+item.getFilename()));
  },out);
  await page.locator('[data-preset="hat"]').click();
  await page.waitForFunction(()=>document.querySelectorAll('#cubeList option').length===3);
@@ -47,7 +48,7 @@ try{
  for(const name of ['MODEL.JSON','TEXTURE.PNG','CATALOG.JSON'])assert.ok(assets[name],name);
  const model=K.checkModel(assets['MODEL.JSON']);K.checkPNG(assets['TEXTURE.PNG']);
  const group=model.groups[0];assert.deepEqual(group.rotation,[0,25,0]);assert.equal(group.origin[0],.75);assert.equal(model.kushStudio.attach,'LEFT_ARM');
- const item=JSON.parse(new TextDecoder().decode(assets['CATALOG.JSON'])).items[0];assert.equal(item.category,'wings');assert.equal(item.flags,525);
+ const item=JSON.parse(new TextDecoder().decode(assets['CATALOG.JSON'])).items[0];assert.equal(item.category,'wings');assert.equal(item.flags,525);assert.ok(assets[item.model]);assert.ok(assets[item.texture]);
  await page.locator('#exportJar').click();
  const newJarPath=path.join(out,'KUSHMOD-fixture-glb_validado.jar');await exists(newJarPath);
  const original=F.unzipSync(await readFile(jarPath)),generated=K.readJar(new Uint8Array(await readFile(newJarPath)));
@@ -62,5 +63,5 @@ try{
  const report={result:'passed',platform:process.platform,packaged:!!executablePath,checks:['3D canvas','cube editing and undo','embedded-texture GLB import','voxel conversion','avatar transform','MODEL/CATALOG/TEXTURE export','JAR preservation','save and reopen project'],cubes:model.elements.length,attachment:item.attach,flags:item.flags};
  await writeFile(path.join(out,'validation.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }catch(error){failed=true;console.error(error);if(app){try{const p=await app.firstWindow();console.error('UI STATUS:',await p.locator('#status').textContent());await p.screenshot({path:path.join(out,'failure.png'),fullPage:true});}catch{}}}
-finally{if(app)await app.close();}
+finally{if(app){let timer;await Promise.race([app.close(),new Promise(resolve=>{timer=setTimeout(()=>{app.process()?.kill();resolve();},10000);})]);clearTimeout(timer);}clearTimeout(watchdog);}
 if(failed)process.exitCode=1;
